@@ -1,0 +1,92 @@
+@import "tailwindcss";
+
+/* Brand colours and fonts copied from the DMSA website (divyaangmyithri.in). */
+:root {
+  --background: #f7f5f0;
+  --foreground: #0c244d;
+
+  /* Navy — sampled directly from the DMSA logo */
+  --color-navy-50: #eaf0fb;
+  --color-navy-100: #cbd9f3;
+  --color-navy-200: #a3bce9;
+  --color-navy-300: #7fa0dd;
+  --color-navy-400: #4a75c4;
+  --color-navy-500: #2e5ab0;
+  --color-navy-600: #1f4f9e;
+  --color-navy-700: #18469c;
+  --color-navy-800: #123573;
+  --color-navy-900: #0c244d;
+  --color-navy-950: #081733;
+
+  /* Teal — sampled directly from the DMSA logo */
+  --color-teal-50: #e6fbfb;
+  --color-teal-100: #bff5f5;
+  --color-teal-200: #8ce9e9;
+  --color-teal-300: #6bdcdc;
+  --color-teal-400: #3ccdcd;
+  --color-teal-500: #23bebe;
+  --color-teal-600: #1ba5a5;
+  --color-teal-700: #1b9494;
+  --color-teal-800: #176f6f;
+  --color-teal-900: #124f4f;
+
+  /* Gold — a "trophy" accent, used only for achievement/record moments */
+  --color-gold-50: #fdf7ea;
+  --color-gold-100: #f9e9c3;
+  --color-gold-200: #f2d68e;
+  --color-gold-300: #e9bd5c;
+  --color-gold-400: #d9a441;
+  --color-gold-500: #c28e2e;
+  --color-gold-600: #a07424;
+  --color-gold-700: #7d5a1e;
+
+  /* Chalk — warm off-white, replaces flat white as the default page background */
+  --color-chalk: #f7f5f0;
+  --color-chalk-dim: #efece3;
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+
+  --color-navy-50: var(--color-navy-50);
+  --color-navy-100: var(--color-navy-100);
+  --color-navy-200: var(--color-navy-200);
+  --color-navy-300: var(--color-navy-300);
+  --color-navy-400: var(--color-navy-400);
+  --color-navy-500: var(--color-navy-500);
+  --color-navy-600: var(--color-navy-600);
+  --color-navy-700: var(--color-navy-700);
+  --color-navy-800: var(--color-navy-800);
+  --color-navy-900: var(--color-navy-900);
+  --color-navy-950: var(--color-navy-950);
+
+  --color-teal-50: var(--color-teal-50);
+  --color-teal-100: var(--color-teal-100);
+  --color-teal-200: var(--color-teal-200);
+  --color-teal-300: var(--color-teal-300);
+  --color-teal-400: var(--color-teal-400);
+  --color-teal-500: var(--color-teal-500);
+  --color-teal-600: var(--color-teal-600);
+  --color-teal-700: var(--color-teal-700);
+  --color-teal-800: var(--color-teal-800);
+  --color-teal-900: var(--color-teal-900);
+
+  --color-gold-50: var(--color-gold-50);
+  --color-gold-100: var(--color-gold-100);
+  --color-gold-200: var(--color-gold-200);
+  --color-gold-300: var(--color-gold-300);
+  --color-gold-400: var(--color-gold-400);
+  --color-gold-500: var(--color-gold-500);
+  --color-gold-600: var(--color-gold-600);
+  --color-gold-700: var(--color-gold-700);
+
+  --color-chalk: var(--color-chalk);
+  --color-chalk-dim: var(--color-chalk-dim);
+
+  --font-display: var(--font-bebas), sans-serif;
+  --font-heading: var(--font-archivo), sans-serif;
+  --font-sans: var(--font-inter), sans-serif;
+}
+
+html, body { background: #081733; color: #fff; font-family: var(--font-sans); }
