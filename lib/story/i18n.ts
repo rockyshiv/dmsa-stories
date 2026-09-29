@@ -99,6 +99,7 @@ const en = {
     donors: "Message to supporters",
   } as Record<string, string>,
   unsupported: "Please open this link in Google Chrome on your phone.",
+  minutesLeft: (n: number) => `About ${n} min to go`,
 };
 
 const kn: typeof en = {
@@ -185,6 +186,7 @@ const kn: typeof en = {
     donors: "ಬೆಂಬಲಿಗರಿಗೆ ಸಂದೇಶ",
   },
   unsupported: "ದಯವಿಟ್ಟು ಈ ಲಿಂಕ್ ಅನ್ನು ನಿಮ್ಮ ಫೋನ್‌ನ Google Chrome ನಲ್ಲಿ ತೆರೆಯಿರಿ.",
+  minutesLeft: (n: number) => `ಇನ್ನೂ ಸುಮಾರು ${n} ನಿಮಿಷ`,
 };
 
 export const STRINGS = { en, kn };

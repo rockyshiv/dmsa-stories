@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { BatteryCharging, Camera, Check, ChevronRight, Clock, ImagePlus, Loader2, Mic, Pause, Play, SkipForward, Smartphone, Square, Sun, Wifi } from "lucide-react";
 import { flushStoryLog, storyApi, StoryApiError, storyLog } from "@/lib/story/api";
-import { STRINGS, TOPIC_IDS, type Lang } from "@/lib/story/i18n";
+import { STRINGS, type Lang } from "@/lib/story/i18n";
 import { getCameraAndMic, Interview } from "@/lib/story/interview";
 import { uploadFile } from "@/lib/story/upload";
 
@@ -260,8 +260,6 @@ function InterviewScreen({
   const engine = useRef<Interview | null>(null);
   const [status, setStatus] = useState<"connecting" | "live" | "reconnecting" | "closed">("connecting");
   const [caption, setCaption] = useState("");
-  const [topic, setTopic] = useState<string>("warmup");
-  const [seen, setSeen] = useState<Set<string>>(new Set(["warmup"]));
   const [seconds, setSeconds] = useState(0);
   const [speaking, setSpeaking] = useState(false);
   const [paused, setPaused] = useState(false);
@@ -287,10 +285,6 @@ function InterviewScreen({
     const it = new Interview(code, lang, session.minutes, session.hasEarlier, session.liveModels, stream, videoRef.current, {
       onStatus: setStatus,
       onMaitriCaption: setCaption,
-      onTopic: (id) => {
-        setTopic(id);
-        setSeen((s) => new Set(s).add(id));
-      },
       onPortrait: () => {
         setFlash(true);
         setTimeout(() => setFlash(false), 1600);
@@ -424,11 +418,9 @@ function InterviewScreen({
           )}
         </div>
         <div className="flex-1">
-          <p className="text-xs uppercase tracking-widest text-teal-300">{t.topics[topic] || ""}</p>
-          <div className="mt-2 flex gap-1">
-            {TOPIC_IDS.map((id) => (
-              <span key={id} className={`h-1.5 flex-1 rounded-full ${id === topic ? "bg-teal-300" : seen.has(id) ? "bg-teal-600" : "bg-white/15"}`} />
-            ))}
+          <p className="text-xs uppercase tracking-widest text-teal-300">{t.minutesLeft(Math.max(1, Math.ceil(session.minutes - seconds / 60)))}</p>
+          <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-white/15">
+            <div className="h-full rounded-full bg-teal-400 transition-all duration-1000" style={{ width: `${Math.min(100, (seconds / (session.minutes * 60)) * 100)}%` }} />
           </div>
         </div>
       </div>

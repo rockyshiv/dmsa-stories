@@ -17,7 +17,6 @@ export interface Line {
 export interface InterviewCallbacks {
   onStatus: (s: "connecting" | "live" | "reconnecting" | "closed") => void;
   onMaitriCaption: (text: string) => void;
-  onTopic: (id: string) => void;
   onPortrait: () => void;
   onTick: (seconds: number) => void;
   onEnding: () => void;
@@ -45,6 +44,18 @@ function stamp() {
   return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())} ${p(d.getHours())}-${p(d.getMinutes())}`;
 }
 
+/** Removes model artefacts from live transcripts: pause tokens and any spoken function calls. */
+export function cleanSpeech(t: string) {
+  return t
+    .replace(/<no speech>|\{pause\}/gi, " ")
+    .replace(/\*{0,2}\s*call\s*`[^`]*`[^*.]*\*{0,2}\.?/gi, " ")
+    .replace(/`[^`]*`/g, " ")
+    .replace(/\*\*/g, "")
+    .replace(/\s+,\s*then\s*/gi, " ")
+    .replace(/\s+/g, " ")
+    .trimStart();
+}
+
 export class Interview {
   readonly sessionId = stamp();
   lines: Line[] = [];
@@ -52,6 +63,9 @@ export class Interview {
   private live!: LiveSession;
   private recorder: MediaRecorder | null = null;
   private uploader: StreamUploader | null = null;
+  // A small audio-only copy, used later for a careful re-transcription.
+  private audioRecorder: MediaRecorder | null = null;
+  private audioUploader: StreamUploader | null = null;
   private startedAt = 0;
   private pausedFor = 0;
   private pausedAt = 0;
@@ -196,6 +210,30 @@ export class Interview {
     });
     this.recorder.ondataavailable = (e) => this.uploader?.push(e.data);
     this.recorder.start(3000);
+    this.startAudioRecording(new MediaStream(s.getAudioTracks()));
+  }
+
+  private startAudioRecording(s: MediaStream) {
+    const mimeType = ["audio/webm;codecs=opus", "audio/mp4;codecs=mp4a.40.2", "audio/webm"].find((t) => MediaRecorder.isTypeSupported(t));
+    if (!mimeType) return;
+    try {
+      this.audioRecorder = new MediaRecorder(s, { mimeType, audioBitsPerSecond: 32_000 });
+    } catch {
+      return;
+    }
+    const type = mimeType.split(";")[0];
+    this.audioUploader = new StreamUploader(this.code, async () => {
+      const r = await storyApi<{ uploadUrl: string }>("uploadStart", {
+        code: this.code,
+        kind: "audio",
+        mimeType: type,
+        sessionId: this.sessionId,
+        origin: location.origin,
+      });
+      return r.uploadUrl;
+    });
+    this.audioRecorder.ondataavailable = (e) => this.audioUploader?.push(e.data);
+    this.audioRecorder.start(5000);
   }
 
   private addText(who: Line["who"], text: string) {
@@ -205,16 +243,12 @@ export class Interview {
       this.openLine = { t: Math.round(this.elapsed), who, text: "" };
       this.lines.push(this.openLine);
     }
-    this.openLine.text = (this.openLine.text + text).replace(/\s+/g, " ").trimStart();
+    this.openLine.text = cleanSpeech(this.openLine.text + text);
     this.dirty = true;
     if (who === "maitri") this.cb.onMaitriCaption(this.openLine.text);
   }
 
   private async tool(name: string, args: Record<string, unknown>) {
-    if (name === "mark_topic") {
-      this.cb.onTopic(String(args.topic || ""));
-      return { ok: true };
-    }
     if (name === "take_portrait") {
       const ok = await this.portrait();
       return { ok, note: ok ? "Photo saved." : "Camera photo failed - just continue." };
@@ -295,6 +329,7 @@ export class Interview {
     this.live.setMicMuted(true);
     this.live.sendNote("[PAUSE]");
     if (this.recorder?.state === "recording") this.recorder.pause();
+    if (this.audioRecorder?.state === "recording") this.audioRecorder.pause();
   }
 
   resume() {
@@ -302,6 +337,7 @@ export class Interview {
     this.pausedAt = 0;
     this.live.setMicMuted(false);
     if (this.recorder?.state === "paused") this.recorder.resume();
+    if (this.audioRecorder?.state === "paused") this.audioRecorder.resume();
     this.live.sendNote("[RESUME]");
   }
 
@@ -324,19 +360,35 @@ export class Interview {
       if (this.timer) clearInterval(this.timer);
       await this.live.drain(12000);
       this.live.close();
-      const rec = this.recorder;
-      if (rec && rec.state !== "inactive") {
-        await new Promise<void>((resolve) => {
-          rec.onstop = () => resolve();
-          rec.stop();
-        });
-      }
+      await Promise.all(
+        [this.recorder, this.audioRecorder].map((rec) =>
+          rec && rec.state !== "inactive"
+            ? new Promise<void>((resolve) => {
+                rec.onstop = () => resolve();
+                rec.stop();
+              })
+            : Promise.resolve(),
+        ),
+      );
       this.cleanup();
       await this.saveTranscript();
       storyApi("finish", { code: this.code, completed: this.completed, minutes: this.elapsed / 60 }).catch(() => {});
+      await this.sendAudio();
       return this.sendVideo(false);
     })();
     return this.finished;
+  }
+
+  /** The audio copy is small, so send it first; a failure here never blocks the player. */
+  private async sendAudio() {
+    if (!this.audioUploader) return;
+    try {
+      const file = await this.audioUploader.finish();
+      this.log(`audio saved ${Math.round(this.audioUploader.uploaded / 1e5) / 10} MB`);
+      storyApi("uploadDone", { code: this.code, kind: "audio", fileId: file?.id }).catch(() => {});
+    } catch (e) {
+      this.log(`audio save failed: ${String((e as Error)?.message || e)}`);
+    }
   }
 
   retryUpload(): Promise<boolean> {
