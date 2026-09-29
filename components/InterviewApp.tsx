@@ -31,6 +31,25 @@ function fallbackSession(lang: Lang): Session {
   return { firstName: "", language: lang, minutes: 18, hasEarlier: false, done: false, liveModels: 3 };
 }
 
+/** A button that reopens this same page in Chrome (Android), or a hint to use Safari (iPhone). */
+function OpenInChrome({ code, text, button }: { code: string; text: string; button: string }) {
+  const android = typeof navigator !== "undefined" && /Android/.test(navigator.userAgent);
+  return (
+    <div className="mt-4 rounded-xl bg-gold-600/80 p-4">
+      <p className="text-base font-semibold">{text}</p>
+      {android && (
+        <a
+          className="mt-3 flex items-center justify-center rounded-lg bg-white px-4 py-3 font-bold text-navy-950"
+          href={`intent://${location.host + location.pathname + location.search}#Intent;scheme=https;package=com.android.chrome;end`}
+          onClick={() => storyLog(code, "tapped Open in Chrome")}
+        >
+          {button}
+        </a>
+      )}
+    </div>
+  );
+}
+
 /** Android in-app browsers (inside WhatsApp, Facebook...) often cannot use the camera. */
 function inAppBrowser() {
   if (typeof navigator === "undefined") return false;
@@ -103,14 +122,27 @@ export default function InterviewApp({ code }: { code: string }) {
       });
   }, [code]);
 
+  const [camSlow, setCamSlow] = useState(false);
   const askCamera = async () => {
     setCamError(false);
+    setCamSlow(false);
     storyLog(code, "asking for camera");
+    // Some phone browsers never show the permission question; after a while,
+    // offer to open the link in Chrome instead.
+    const slowTimer = setTimeout(() => {
+      setCamSlow(true);
+      storyLog(code, "camera question unanswered after 12s");
+      flushStoryLog();
+    }, 12000);
     try {
       const s = await getCameraAndMic();
+      clearTimeout(slowTimer);
+      setCamSlow(false);
       storyLog(code, `camera ok: ${s.getVideoTracks()[0]?.label || "?"} / ${s.getAudioTracks()[0]?.label || "?"}`);
       setStream(s);
     } catch (e) {
+      clearTimeout(slowTimer);
+      setCamSlow(false);
       storyLog(code, `camera failed: ${(e as Error)?.name} ${(e as Error)?.message}`);
       flushStoryLog();
       // "Dismissed" just means the pop-up was closed: asking again works.
@@ -237,6 +269,7 @@ export default function InterviewApp({ code }: { code: string }) {
             <>
               <p className="mt-3 text-base text-navy-100">{t.cameraHelp}</p>
               {camError && <p className="mt-4 rounded-lg bg-red-900/60 p-4 text-red-100">{camError === "dismissed" ? t.cameraDismissed : t.cameraDenied}</p>}
+              {(camSlow || camError === "blocked") && <OpenInChrome code={code} text={t.noCameraQuestion} button={t.openInChromeButton} />}
               <PrimaryButton onClick={askCamera}>
                 <Camera className="h-5 w-5" /> {t.allow}
               </PrimaryButton>

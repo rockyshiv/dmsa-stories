@@ -104,6 +104,7 @@ const en = {
   cameraDismissed: "The camera question was closed. Tap the button below and choose \"Allow\".",
   openInChrome: "This link opened inside another app, where the camera may not work. Please open it in Chrome.",
   openInChromeButton: "Open in Chrome",
+  noCameraQuestion: "No question asking for the camera? Your phone's browser may not support it. Please open this link in Chrome (on iPhone: Safari).",
 };
 
 const kn: typeof en = {
@@ -195,6 +196,7 @@ const kn: typeof en = {
   cameraDismissed: "ಕ್ಯಾಮೆರಾ ಅನುಮತಿ ಪ್ರಶ್ನೆ ಮುಚ್ಚಲಾಯಿತು. ಕೆಳಗಿನ ಬಟನ್ ಒತ್ತಿ \"Allow\" ಆಯ್ಕೆ ಮಾಡಿ.",
   openInChrome: "ಈ ಲಿಂಕ್ ಬೇರೆ ಆ್ಯಪ್‌ನ ಒಳಗೆ ತೆರೆದಿದೆ, ಅಲ್ಲಿ ಕ್ಯಾಮೆರಾ ಕೆಲಸ ಮಾಡದಿರಬಹುದು. ದಯವಿಟ್ಟು Chrome ನಲ್ಲಿ ತೆರೆಯಿರಿ.",
   openInChromeButton: "Chrome ನಲ್ಲಿ ತೆರೆಯಿರಿ",
+  noCameraQuestion: "ಕ್ಯಾಮೆರಾ ಅನುಮತಿ ಕೇಳುವ ಪ್ರಶ್ನೆ ಕಾಣುತ್ತಿಲ್ಲವೇ? ನಿಮ್ಮ ಫೋನ್‌ನ ಬ್ರೌಸರ್ ಇದನ್ನು ಬೆಂಬಲಿಸದಿರಬಹುದು. ದಯವಿಟ್ಟು ಈ ಲಿಂಕ್ ಅನ್ನು Chrome ನಲ್ಲಿ ತೆರೆಯಿರಿ (iPhone ನಲ್ಲಿ Safari).",
 };
 
 export const STRINGS = { en, kn };
