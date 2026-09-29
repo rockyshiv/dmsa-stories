@@ -21,13 +21,14 @@ export async function storyApi<T = Record<string, unknown>>(
   action: string,
   body: Record<string, unknown>,
   tries = 3,
+  timeoutMs = 25000,
 ): Promise<T> {
   let lastErr: unknown;
   for (let i = 0; i < tries; i++) {
     try {
       // Apps Script can hang on a bad mobile connection; never wait forever.
       const ctrl = new AbortController();
-      const timer = setTimeout(() => ctrl.abort(), 25000);
+      const timer = setTimeout(() => ctrl.abort(), timeoutMs);
       const res = await fetch(STORY_API_URL, {
         method: "POST",
         body: JSON.stringify({ action, ...body }),
@@ -78,4 +79,9 @@ export function flushStoryLog(beacon = false) {
   const body = { code: logCode, events: pendingLog.splice(0), userAgent: navigator.userAgent };
   if (beacon) storyBeacon("log", body);
   else storyApi("log", body, 2).catch(() => storyBeacon("log", body));
+}
+
+/** Calls the admin API with the private key from Shiva's app link. */
+export function storyAdmin<T = Record<string, unknown>>(op: string, key: string, body: Record<string, unknown> = {}, timeoutMs = 60000) {
+  return storyApi<T>("admin", { op, key, ...body }, 1, timeoutMs);
 }
