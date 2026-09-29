@@ -100,6 +100,7 @@ const en = {
   } as Record<string, string>,
   unsupported: "Please open this link in Google Chrome on your phone.",
   minutesLeft: (n: number) => `About ${n} min to go`,
+  pleaseWait: "Loading… this can take up to 20 seconds. Please wait.",
 };
 
 const kn: typeof en = {
@@ -187,6 +188,7 @@ const kn: typeof en = {
   },
   unsupported: "ದಯವಿಟ್ಟು ಈ ಲಿಂಕ್ ಅನ್ನು ನಿಮ್ಮ ಫೋನ್‌ನ Google Chrome ನಲ್ಲಿ ತೆರೆಯಿರಿ.",
   minutesLeft: (n: number) => `ಇನ್ನೂ ಸುಮಾರು ${n} ನಿಮಿಷ`,
+  pleaseWait: "ತೆರೆಯುತ್ತಿದೆ… 20 ಸೆಕೆಂಡುಗಳವರೆಗೆ ಬೇಕಾಗಬಹುದು. ದಯವಿಟ್ಟು ಕಾಯಿರಿ.",
 };
 
 export const STRINGS = { en, kn };

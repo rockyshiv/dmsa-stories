@@ -154,13 +154,27 @@ export class Interview {
       onFatal: (m) => {
         this.log(`fatal: ${m}`);
         flushStoryLog();
-        this.cb.onFatal(m);
+        // Once the interview is under way, save what was recorded (the player
+        // can reopen the link to continue) instead of dropping it.
+        if (this.readyOnce) this.finish();
+        else {
+          this.abort();
+          this.cb.onFatal(m);
+        }
       },
       onLog: (e) => this.log(e),
     });
     capture.port.onmessage = (e) => this.live.sendAudio(e.data as ArrayBuffer);
 
     this.startRecording(new MediaStream([...this.stream.getVideoTracks(), ...recMix.stream.getAudioTracks()]));
+    // A phone call or the system taking the camera/mic away ends the tracks:
+    // finish cleanly so the recording is kept.
+    this.stream.getTracks().forEach((t) => {
+      t.onended = () => {
+        this.log(`${t.kind} track ended`);
+        if (!this.ending && this.readyOnce) this.finish();
+      };
+    });
     this.keepAwake();
     document.addEventListener("visibilitychange", this.onVisibility);
     window.addEventListener("pagehide", this.onPageHide);
@@ -190,7 +204,7 @@ export class Interview {
     try {
       this.recorder = new MediaRecorder(s, {
         ...(mimeType ? { mimeType } : {}),
-        videoBitsPerSecond: 1_500_000,
+        videoBitsPerSecond: 1_000_000, // ~135 MB per 18 min: gentler on players' mobile data
         audioBitsPerSecond: 96_000,
       });
     } catch {
@@ -413,6 +427,21 @@ export class Interview {
       clearInterval(t);
       this.cb.onSaveProgress(up.uploaded, up.pendingBytes());
     }
+  }
+
+  /** Stops everything without saving: used when the interview never got going. */
+  abort() {
+    this.ending = true;
+    if (this.timer) clearInterval(this.timer);
+    try {
+      this.live?.close();
+    } catch {
+      /* not started */
+    }
+    [this.recorder, this.audioRecorder].forEach((r) => {
+      if (r && r.state !== "inactive") r.stop();
+    });
+    this.cleanup();
   }
 
   private async keepAwake() {

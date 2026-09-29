@@ -68,7 +68,7 @@ export function storyLog(code: string, event: string) {
   logCode = code;
   const t = new Date().toTimeString().slice(0, 8);
   pendingLog.push(`${t} ${event}`);
-  if (!logTimer) logTimer = setTimeout(flushStoryLog, 4000);
+  if (!logTimer) logTimer = setTimeout(() => flushStoryLog(), 1500);
 }
 
 export function flushStoryLog(beacon = false) {
@@ -77,5 +77,5 @@ export function flushStoryLog(beacon = false) {
   if (!pendingLog.length || !logCode) return;
   const body = { code: logCode, events: pendingLog.splice(0), userAgent: navigator.userAgent };
   if (beacon) storyBeacon("log", body);
-  else storyApi("log", body, 1).catch(() => {});
+  else storyApi("log", body, 2).catch(() => storyBeacon("log", body));
 }

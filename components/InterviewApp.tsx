@@ -39,14 +39,52 @@ export default function InterviewApp({ code }: { code: string }) {
   const [errorMsg, setErrorMsg] = useState("");
   const t = STRINGS[lang];
 
+  // Diagnostics from the very first moment, so a stuck player can be traced.
   useEffect(() => {
+    storyLog(code, `page opened: ${window.innerWidth}x${window.innerHeight}, online ${navigator.onLine}`);
+    const onError = (e: ErrorEvent) => {
+      storyLog(code, `page error: ${e.message} @ ${e.filename?.split("/").pop()}:${e.lineno}`);
+      flushStoryLog();
+    };
+    const onRejection = (e: PromiseRejectionEvent) => {
+      storyLog(code, `unhandled: ${String((e.reason as Error)?.message || e.reason)}`);
+      flushStoryLog();
+    };
+    const onHide = () => {
+      if (document.visibilityState === "hidden") flushStoryLog(true);
+    };
+    window.addEventListener("error", onError);
+    window.addEventListener("unhandledrejection", onRejection);
+    document.addEventListener("visibilitychange", onHide);
+    return () => {
+      window.removeEventListener("error", onError);
+      window.removeEventListener("unhandledrejection", onRejection);
+      document.removeEventListener("visibilitychange", onHide);
+    };
+  }, [code]);
+
+  // Each screen starts at the top (the page scrolls inside one container).
+  useEffect(() => {
+    document.querySelector("[data-story-root]")?.scrollTo(0, 0);
+    storyLog(code, `screen: ${screen}`);
+  }, [screen, code]);
+
+  const [slow, setSlow] = useState(false);
+  useEffect(() => {
+    const t = setTimeout(() => setSlow(true), 4000);
+    const t0 = Date.now();
     storyApi<Session & { ok: boolean }>("session", { code })
       .then((s) => {
+        clearTimeout(t);
+        storyLog(code, `session ok in ${Math.round((Date.now() - t0) / 100) / 10}s`);
         setSession(s);
         setLang(s.language);
         setScreen("welcome");
       })
       .catch((e) => {
+        clearTimeout(t);
+        storyLog(code, `session failed: ${String(e?.message || e)}`);
+        flushStoryLog();
         if (e instanceof StoryApiError && e.code === "unknown_code") setScreen("invalid");
         else {
           setErrorMsg(String(e?.message || e));
@@ -57,6 +95,7 @@ export default function InterviewApp({ code }: { code: string }) {
 
   const askCamera = async () => {
     setCamError(false);
+    storyLog(code, "asking for camera");
     try {
       const s = await getCameraAndMic();
       storyLog(code, `camera ok: ${s.getVideoTracks()[0]?.label || "?"} / ${s.getAudioTracks()[0]?.label || "?"}`);
@@ -79,10 +118,16 @@ export default function InterviewApp({ code }: { code: string }) {
   };
 
   return (
-    <div className="fixed inset-0 z-[1000] overflow-y-auto bg-navy-950 font-sans text-white" lang={lang === "kn" ? "kn" : "en"}>
+    <div data-story-root className="fixed inset-0 z-[1000] overflow-y-auto bg-navy-950 font-sans text-white" lang={lang === "kn" ? "kn" : "en"}>
       {screen === "loading" && (
         <Centered>
           <Loader2 className="h-10 w-10 animate-spin text-teal-400" aria-label="Loading" />
+          {slow && (
+            <>
+              <p className="mt-6 max-w-xs text-center text-lg">{STRINGS.kn.pleaseWait}</p>
+              <p className="mt-2 max-w-xs text-center text-navy-200">{STRINGS.en.pleaseWait}</p>
+            </>
+          )}
         </Centered>
       )}
 
@@ -187,6 +232,7 @@ export default function InterviewApp({ code }: { code: string }) {
                   const Ctx = window.AudioContext || (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
                   const ctx = new Ctx();
                   ctx.resume().catch(() => {});
+                  storyLog(code, `start tapped, audio ${ctx.state}`);
                   setAudioCtx(ctx);
                   setScreen("interview");
                 }}
@@ -296,6 +342,7 @@ function InterviewScreen({
     }, audioCtx);
     engine.current = it;
     it.start().catch((e) => {
+      it.abort();
       storyLog(code, `start failed: ${String(e?.message || e)}`);
       flushStoryLog();
       onFatal(String(e?.message || e));
