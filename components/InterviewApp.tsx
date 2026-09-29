@@ -26,6 +26,17 @@ interface UploadItem {
   state: "waiting" | "uploading" | "done" | "failed";
 }
 
+// Used if the first backend reply is slow: the interview itself does not need it.
+function fallbackSession(lang: Lang): Session {
+  return { firstName: "", language: lang, minutes: 18, hasEarlier: false, done: false, liveModels: 3 };
+}
+
+/** Android in-app browsers (inside WhatsApp, Facebook...) often cannot use the camera. */
+function inAppBrowser() {
+  if (typeof navigator === "undefined") return false;
+  return /; wv\)|FBAN|FBAV|Instagram|Line\//.test(navigator.userAgent) && /Android/.test(navigator.userAgent);
+}
+
 const TIP_ICONS = [Clock, Sun, Smartphone, BatteryCharging, Wifi];
 
 export default function InterviewApp({ code }: { code: string }) {
@@ -35,7 +46,7 @@ export default function InterviewApp({ code }: { code: string }) {
   const [lang, setLang] = useState<Lang>("kn");
   const [agreed, setAgreed] = useState(false);
   const [stream, setStream] = useState<MediaStream | null>(null);
-  const [camError, setCamError] = useState(false);
+  const [camError, setCamError] = useState<false | "dismissed" | "blocked">(false);
   const [audioCtx, setAudioCtx] = useState<AudioContext | null>(null);
   const [errorMsg, setErrorMsg] = useState("");
   const t = STRINGS[lang];
@@ -102,7 +113,8 @@ export default function InterviewApp({ code }: { code: string }) {
     } catch (e) {
       storyLog(code, `camera failed: ${(e as Error)?.name} ${(e as Error)?.message}`);
       flushStoryLog();
-      setCamError(true);
+      // "Dismissed" just means the pop-up was closed: asking again works.
+      setCamError(/dismiss/i.test(String((e as Error)?.message)) ? "dismissed" : "blocked");
     }
   };
 
@@ -150,6 +162,18 @@ export default function InterviewApp({ code }: { code: string }) {
             <Logo />
             <LangToggle lang={lang} setLang={chooseLang} />
           </div>
+          {inAppBrowser() && (
+            <div className="mt-6 rounded-xl bg-gold-600/80 p-4">
+              <p className="text-base font-semibold">{t.openInChrome}</p>
+              <a
+                className="mt-3 flex items-center justify-center rounded-lg bg-white px-4 py-3 font-bold text-navy-950"
+                href={`intent://${typeof location !== "undefined" ? location.host + location.pathname + location.search : ""}#Intent;scheme=https;package=com.android.chrome;end`}
+                onClick={() => storyLog(code, "tapped Open in Chrome")}
+              >
+                {t.openInChromeButton}
+              </a>
+            </div>
+          )}
           <h1 className="mt-10 font-display text-5xl leading-none tracking-wide text-white">{t.hello(session?.firstName || "")}</h1>
           <p className="mt-4 text-lg leading-relaxed text-navy-100">{t.intro}</p>
           {session?.done ? (
@@ -212,7 +236,7 @@ export default function InterviewApp({ code }: { code: string }) {
           {!stream ? (
             <>
               <p className="mt-3 text-base text-navy-100">{t.cameraHelp}</p>
-              {camError && <p className="mt-4 rounded-lg bg-red-900/60 p-4 text-red-100">{t.cameraDenied}</p>}
+              {camError && <p className="mt-4 rounded-lg bg-red-900/60 p-4 text-red-100">{camError === "dismissed" ? t.cameraDismissed : t.cameraDenied}</p>}
               <PrimaryButton onClick={askCamera}>
                 <Camera className="h-5 w-5" /> {t.allow}
               </PrimaryButton>
@@ -232,7 +256,6 @@ export default function InterviewApp({ code }: { code: string }) {
                 </p>
               )}
               <PrimaryButton
-                disabled={!session}
                 onClick={() => {
                   // Create and resume audio inside the tap itself: Samsung Internet
                   // and some other browsers refuse to start audio any later.
@@ -251,12 +274,12 @@ export default function InterviewApp({ code }: { code: string }) {
         </Page>
       )}
 
-      {(screen === "interview" || screen === "saving") && session && stream && audioCtx && (
+      {(screen === "interview" || screen === "saving") && stream && audioCtx && (
         <InterviewScreen
           audioCtx={audioCtx}
           code={code}
           lang={lang}
-          session={session}
+          session={session ?? fallbackSession(lang)}
           stream={stream}
           saving={screen === "saving"}
           onEnding={() => setScreen("saving")}

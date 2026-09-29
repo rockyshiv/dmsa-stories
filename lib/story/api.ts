@@ -72,7 +72,9 @@ export function storyLog(code: string, event: string) {
   logCode = code;
   const t = new Date().toTimeString().slice(0, 8);
   pendingLog.push(`${t} ${event}`);
-  if (!logTimer) logTimer = setTimeout(() => flushStoryLog(), 1500);
+  // Batched every 8 seconds to keep traffic to the backend low; errors and
+  // page hides flush immediately (see flushStoryLog callers).
+  if (!logTimer) logTimer = setTimeout(() => flushStoryLog(), 8000);
 }
 
 export function flushStoryLog(beacon = false) {

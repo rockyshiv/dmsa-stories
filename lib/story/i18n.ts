@@ -101,6 +101,9 @@ const en = {
   unsupported: "Please open this link in Google Chrome on your phone.",
   minutesLeft: (n: number) => `About ${n} min to go`,
   pleaseWait: "Loading… this can take up to 20 seconds. Please wait.",
+  cameraDismissed: "The camera question was closed. Tap the button below and choose \"Allow\".",
+  openInChrome: "This link opened inside another app, where the camera may not work. Please open it in Chrome.",
+  openInChromeButton: "Open in Chrome",
 };
 
 const kn: typeof en = {
@@ -189,6 +192,9 @@ const kn: typeof en = {
   unsupported: "ದಯವಿಟ್ಟು ಈ ಲಿಂಕ್ ಅನ್ನು ನಿಮ್ಮ ಫೋನ್‌ನ Google Chrome ನಲ್ಲಿ ತೆರೆಯಿರಿ.",
   minutesLeft: (n: number) => `ಇನ್ನೂ ಸುಮಾರು ${n} ನಿಮಿಷ`,
   pleaseWait: "ತೆರೆಯುತ್ತಿದೆ… 20 ಸೆಕೆಂಡುಗಳವರೆಗೆ ಬೇಕಾಗಬಹುದು. ದಯವಿಟ್ಟು ಕಾಯಿರಿ.",
+  cameraDismissed: "ಕ್ಯಾಮೆರಾ ಅನುಮತಿ ಪ್ರಶ್ನೆ ಮುಚ್ಚಲಾಯಿತು. ಕೆಳಗಿನ ಬಟನ್ ಒತ್ತಿ \"Allow\" ಆಯ್ಕೆ ಮಾಡಿ.",
+  openInChrome: "ಈ ಲಿಂಕ್ ಬೇರೆ ಆ್ಯಪ್‌ನ ಒಳಗೆ ತೆರೆದಿದೆ, ಅಲ್ಲಿ ಕ್ಯಾಮೆರಾ ಕೆಲಸ ಮಾಡದಿರಬಹುದು. ದಯವಿಟ್ಟು Chrome ನಲ್ಲಿ ತೆರೆಯಿರಿ.",
+  openInChromeButton: "Chrome ನಲ್ಲಿ ತೆರೆಯಿರಿ",
 };
 
 export const STRINGS = { en, kn };
