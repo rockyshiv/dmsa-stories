@@ -43,7 +43,7 @@ const en = {
   ],
   agree: "I agree",
   cameraTitle: "Camera and microphone",
-  cameraHelp: "Tap the button, then choose Allow so Maitri can hear you and the video can be recorded.",
+  cameraHelp: "Your phone will ask to use the camera and microphone - choose Allow, so Maitri can hear you and the video can be recorded. If nothing appears, tap the button below.",
   allow: "Allow camera & microphone",
   cameraDenied:
     "Camera or microphone is blocked. Tap the lock icon next to the website address, allow Camera and Microphone, then reload this page.",
@@ -131,7 +131,7 @@ const kn: typeof en = {
   ],
   agree: "ನಾನು ಒಪ್ಪುತ್ತೇನೆ",
   cameraTitle: "ಕ್ಯಾಮೆರಾ ಮತ್ತು ಮೈಕ್",
-  cameraHelp: "ಕೆಳಗಿನ ಬಟನ್ ಒತ್ತಿ, ನಂತರ Allow ಆಯ್ಕೆ ಮಾಡಿ. ಆಗ ಮೈತ್ರಿ ನಿಮ್ಮ ಮಾತು ಕೇಳಬಹುದು ಮತ್ತು ವೀಡಿಯೊ ರೆಕಾರ್ಡ್ ಆಗುತ್ತದೆ.",
+  cameraHelp: "ನಿಮ್ಮ ಫೋನ್ ಕ್ಯಾಮೆರಾ ಮತ್ತು ಮೈಕ್ ಬಳಸಲು ಅನುಮತಿ ಕೇಳುತ್ತದೆ - Allow ಆಯ್ಕೆ ಮಾಡಿ. ಆಗ ಮೈತ್ರಿ ನಿಮ್ಮ ಮಾತು ಕೇಳಬಹುದು ಮತ್ತು ವೀಡಿಯೊ ರೆಕಾರ್ಡ್ ಆಗುತ್ತದೆ. ಏನೂ ಕಾಣಿಸದಿದ್ದರೆ, ಕೆಳಗಿನ ಬಟನ್ ಒತ್ತಿ.",
   allow: "ಕ್ಯಾಮೆರಾ ಮತ್ತು ಮೈಕ್‌ಗೆ ಅನುಮತಿ ನೀಡಿ",
   cameraDenied:
     "ಕ್ಯಾಮೆರಾ ಅಥವಾ ಮೈಕ್ ಬ್ಲಾಕ್ ಆಗಿದೆ. ವೆಬ್‌ಸೈಟ್ ವಿಳಾಸದ ಪಕ್ಕದ ಬೀಗದ ಚಿಹ್ನೆ ಒತ್ತಿ, Camera ಮತ್ತು Microphone ಗೆ Allow ಮಾಡಿ, ನಂತರ ಪುಟವನ್ನು ರೀಲೋಡ್ ಮಾಡಿ.",

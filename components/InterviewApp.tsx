@@ -115,6 +115,9 @@ export default function InterviewApp({ code }: { code: string }) {
       text: t.consentItems.map((x) => "- " + x).join("\n"),
       userAgent: navigator.userAgent,
     }).catch(() => {});
+    // Ask for the camera straight away, inside this tap: players were
+    // stopping at a separate "Allow camera" button. It stays as a fallback.
+    askCamera();
   };
 
   return (
