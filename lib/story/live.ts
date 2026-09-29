@@ -22,6 +22,7 @@ export interface LiveHandlers {
   onTool?: (name: string, args: Record<string, unknown>) => Promise<Record<string, unknown>> | Record<string, unknown>;
   onStatus?: (s: "connecting" | "live" | "reconnecting" | "closed") => void;
   onFatal?: (message: string) => void;
+  onLog?: (event: string) => void;
 }
 
 type Json = Record<string, any>; // eslint-disable-line @typescript-eslint/no-explicit-any
@@ -72,6 +73,7 @@ export class LiveSession {
     const resuming = !!this.handle;
     const tok = await this.getToken(reconnect && !resuming);
     this.resuming = resuming;
+    this.h.onLog?.(`connecting ${tok.model}${resuming ? " (resume)" : ""}`);
     const ws = new WebSocket(tok.wsUrl);
     ws.binaryType = "arraybuffer";
     this.ws = ws;
@@ -92,6 +94,7 @@ export class LiveSession {
     ws.onclose = (ev) => {
       if (this.ws !== ws) return;
       this.ready = false;
+      this.h.onLog?.(`socket closed ${ev.code} ${ev.reason || ""}`.trim());
       if (this.closedByUs) {
         this.h.onStatus?.("closed");
         return;
@@ -122,6 +125,7 @@ export class LiveSession {
     if (m.setupComplete) {
       this.ready = true;
       this.retries = 0;
+      this.h.onLog?.("live");
       this.h.onStatus?.("live");
       this.h.onReady?.(this.resuming);
       return;
@@ -130,6 +134,7 @@ export class LiveSession {
       this.handle = m.sessionResumptionUpdate.newHandle;
     }
     if (m.goAway) {
+      this.h.onLog?.("goAway - switching connection");
       // The server will close soon; move to a new connection now.
       const old = this.ws;
       this.ws = null;

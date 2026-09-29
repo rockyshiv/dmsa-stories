@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { BatteryCharging, Camera, Check, ChevronRight, Clock, ImagePlus, Loader2, Mic, Pause, Play, SkipForward, Smartphone, Square, Sun, Wifi } from "lucide-react";
-import { storyApi, StoryApiError } from "@/lib/story/api";
+import { flushStoryLog, storyApi, StoryApiError, storyLog } from "@/lib/story/api";
 import { STRINGS, TOPIC_IDS, type Lang } from "@/lib/story/i18n";
 import { getCameraAndMic, Interview } from "@/lib/story/interview";
 import { uploadFile } from "@/lib/story/upload";
@@ -35,6 +35,7 @@ export default function InterviewApp({ code }: { code: string }) {
   const [agreed, setAgreed] = useState(false);
   const [stream, setStream] = useState<MediaStream | null>(null);
   const [camError, setCamError] = useState(false);
+  const [audioCtx, setAudioCtx] = useState<AudioContext | null>(null);
   const [errorMsg, setErrorMsg] = useState("");
   const t = STRINGS[lang];
 
@@ -57,8 +58,12 @@ export default function InterviewApp({ code }: { code: string }) {
   const askCamera = async () => {
     setCamError(false);
     try {
-      setStream(await getCameraAndMic());
-    } catch {
+      const s = await getCameraAndMic();
+      storyLog(code, `camera ok: ${s.getVideoTracks()[0]?.label || "?"} / ${s.getAudioTracks()[0]?.label || "?"}`);
+      setStream(s);
+    } catch (e) {
+      storyLog(code, `camera failed: ${(e as Error)?.name} ${(e as Error)?.message}`);
+      flushStoryLog();
       setCamError(true);
     }
   };
@@ -175,7 +180,17 @@ export default function InterviewApp({ code }: { code: string }) {
             <>
               <SelfView stream={stream} className="mt-5 aspect-[3/4] w-full rounded-2xl" />
               <p className="mt-4 text-base text-navy-100">{t.looksGood}</p>
-              <PrimaryButton onClick={() => setScreen("interview")}>
+              <PrimaryButton
+                onClick={() => {
+                  // Create and resume audio inside the tap itself: Samsung Internet
+                  // and some other browsers refuse to start audio any later.
+                  const Ctx = window.AudioContext || (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
+                  const ctx = new Ctx();
+                  ctx.resume().catch(() => {});
+                  setAudioCtx(ctx);
+                  setScreen("interview");
+                }}
+              >
                 <Mic className="h-5 w-5" /> {t.start}
               </PrimaryButton>
             </>
@@ -183,8 +198,9 @@ export default function InterviewApp({ code }: { code: string }) {
         </Page>
       )}
 
-      {(screen === "interview" || screen === "saving") && session && stream && (
+      {(screen === "interview" || screen === "saving") && session && stream && audioCtx && (
         <InterviewScreen
+          audioCtx={audioCtx}
           code={code}
           lang={lang}
           session={session}
@@ -219,6 +235,7 @@ export default function InterviewApp({ code }: { code: string }) {
 }
 
 function InterviewScreen({
+  audioCtx,
   code,
   lang,
   session,
@@ -228,6 +245,7 @@ function InterviewScreen({
   onSaved,
   onFatal,
 }: {
+  audioCtx: AudioContext;
   code: string;
   lang: Lang;
   session: Session;
@@ -281,9 +299,13 @@ function InterviewScreen({
       onEnding,
       onSaveProgress: (sent, pending) => setSave({ sent, pending }),
       onFatal,
-    });
+    }, audioCtx);
     engine.current = it;
-    it.start().catch((e) => onFatal(String(e?.message || e)));
+    it.start().catch((e) => {
+      storyLog(code, `start failed: ${String(e?.message || e)}`);
+      flushStoryLog();
+      onFatal(String(e?.message || e));
+    });
     const poll = setInterval(() => setSpeaking(it.speaking), 150);
     const vis = () => setHidden(document.visibilityState === "hidden");
     document.addEventListener("visibilitychange", vis);

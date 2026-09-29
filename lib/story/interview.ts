@@ -3,7 +3,7 @@
  * speaker, camera + both voices -> a video recording streamed to Drive, and a
  * running transcript saved to Drive every 30 seconds.
  */
-import { storyApi, storyBeacon } from "./api";
+import { flushStoryLog, storyApi, storyBeacon, storyLog } from "./api";
 import { LiveSession } from "./live";
 import { StreamUploader, uploadFile } from "./upload";
 import type { Lang } from "./i18n";
@@ -49,7 +49,6 @@ export class Interview {
   readonly sessionId = stamp();
   lines: Line[] = [];
   private openLine: Line | null = null;
-  private ctx!: AudioContext;
   private live!: LiveSession;
   private recorder: MediaRecorder | null = null;
   private uploader: StreamUploader | null = null;
@@ -66,6 +65,7 @@ export class Interview {
   private readyOnce = false;
   private attemptsWithoutReady = 0;
   private wakeLock: { release: () => Promise<void> } | null = null;
+  private endRequested = false;
   completed = false;
 
   constructor(
@@ -77,7 +77,13 @@ export class Interview {
     private stream: MediaStream,
     private video: HTMLVideoElement,
     private cb: InterviewCallbacks,
+    /** Created (and resumed) inside the player's tap, which some browsers require. */
+    private ctx: AudioContext,
   ) {}
+
+  private log(event: string) {
+    storyLog(this.code, event);
+  }
 
   get speaking() {
     return this.live?.maitriSpeaking ?? false;
@@ -90,9 +96,15 @@ export class Interview {
   }
 
   async start() {
-    this.ctx = new AudioContext();
-    await this.ctx.resume();
+    this.log(`start: audio ${this.ctx.state} ${this.ctx.sampleRate}Hz, video ${this.stream.getVideoTracks().length}, mic ${this.stream.getAudioTracks().length}`);
+    if (this.ctx.state !== "running") {
+      // Never wait forever: some browsers leave resume() pending.
+      await Promise.race([this.ctx.resume(), new Promise((r) => setTimeout(r, 3000))]);
+      this.log(`audio after resume: ${this.ctx.state}`);
+    }
+    if (!this.ctx.audioWorklet) throw new Error("This browser cannot process audio. Please open the link in Google Chrome.");
     await this.ctx.audioWorklet.addModule(`${process.env.NEXT_PUBLIC_BASE_PATH}/pcm-capture-worklet.js`);
+    this.log("audio worklet ready");
 
     const mic = this.ctx.createMediaStreamSource(this.stream);
     const capture = new AudioWorkletNode(this.ctx, "pcm-capture");
@@ -125,7 +137,12 @@ export class Interview {
         if (this.openLine?.who === "maitri") this.openLine = null;
       },
       onTool: (name, args) => this.tool(name, args),
-      onFatal: (m) => this.cb.onFatal(m),
+      onFatal: (m) => {
+        this.log(`fatal: ${m}`);
+        flushStoryLog();
+        this.cb.onFatal(m);
+      },
+      onLog: (e) => this.log(e),
     });
     capture.port.onmessage = (e) => this.live.sendAudio(e.data as ArrayBuffer);
 
@@ -141,13 +158,16 @@ export class Interview {
     // free quota: try the next one.
     if (this.attemptsWithoutReady++ > 0) this.modelIndex = Math.min(this.modelIndex + 1, this.liveModels - 1);
     if (needHistory) await this.saveTranscript();
-    return storyApi<{ wsUrl: string; model: string }>("liveToken", {
+    const t = await storyApi<{ wsUrl: string; model: string }>("liveToken", {
       code: this.code,
       lang: this.lang,
       modelIndex: this.modelIndex,
       withHistory: needHistory || (this.continuing && !this.readyOnce),
+      midCall: needHistory,
       sessionId: this.sessionId,
     });
+    this.log("token ok");
+    return t;
   }
 
   private startRecording(s: MediaStream) {
@@ -163,6 +183,7 @@ export class Interview {
       this.recorder = new MediaRecorder(s);
     }
     const type = (this.recorder.mimeType || mimeType || "video/webm").split(";")[0];
+    this.log(`recorder ${this.recorder.mimeType || mimeType || "default"}`);
     this.uploader = new StreamUploader(this.code, async () => {
       const r = await storyApi<{ uploadUrl: string }>("uploadStart", {
         code: this.code,
@@ -199,6 +220,13 @@ export class Interview {
       return { ok, note: ok ? "Photo saved." : "Camera photo failed - just continue." };
     }
     if (name === "end_interview") {
+      // Guard against ending by mistake right at the start: only the player
+      // (End button / [END]) can finish in the first two minutes.
+      if (!this.endRequested && this.elapsed < 120) {
+        this.log(`blocked early end_interview at ${Math.round(this.elapsed)}s`);
+        return { ok: false, error: "Too early - the interview has only just started. Do not end. Continue with the next question." };
+      }
+      this.log(`end_interview at ${Math.round(this.elapsed)}s`);
       this.completed = args.completed !== false;
       setTimeout(() => this.finish(), 0);
       return { ok: true };
@@ -279,6 +307,8 @@ export class Interview {
 
   /** The player tapped End: let Maitri say goodbye, but never wait long. */
   requestEnd() {
+    this.endRequested = true;
+    this.log(`player tapped End at ${Math.round(this.elapsed)}s`);
     if (this.pausedAt) this.resume();
     this.live.stopPlayback();
     this.live.sendNote("[END]");
@@ -319,9 +349,13 @@ export class Interview {
     const t = setInterval(() => this.cb.onSaveProgress(up.uploaded, up.pendingBytes()), 500);
     try {
       const file = retry ? await up.retry() : await up.finish();
+      this.log(`video saved ${Math.round(up.uploaded / 1e6)} MB`);
+      flushStoryLog();
       storyApi("uploadDone", { code: this.code, kind: "interview", fileId: file?.id }).catch(() => {});
       return true;
-    } catch {
+    } catch (e) {
+      this.log(`video save failed: ${String((e as Error)?.message || e)}`);
+      flushStoryLog();
       return false;
     } finally {
       clearInterval(t);
@@ -340,10 +374,16 @@ export class Interview {
 
   private onVisibility = () => {
     if (document.visibilityState === "visible" && !this.ending) this.keepAwake();
-    if (document.visibilityState === "hidden" && this.lines.length) storyBeacon("transcript", this.transcriptBody());
+    this.log(`page ${document.visibilityState}`);
+    if (document.visibilityState === "hidden") {
+      if (this.lines.length) storyBeacon("transcript", this.transcriptBody());
+      flushStoryLog(true);
+    }
   };
 
   private onPageHide = () => {
+    this.log("page closed");
+    flushStoryLog(true);
     if (this.lines.length) storyBeacon("transcript", this.transcriptBody());
   };
 

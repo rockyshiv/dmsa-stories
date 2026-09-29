@@ -25,10 +25,14 @@ export async function storyApi<T = Record<string, unknown>>(
   let lastErr: unknown;
   for (let i = 0; i < tries; i++) {
     try {
+      // Apps Script can hang on a bad mobile connection; never wait forever.
+      const ctrl = new AbortController();
+      const timer = setTimeout(() => ctrl.abort(), 25000);
       const res = await fetch(STORY_API_URL, {
         method: "POST",
         body: JSON.stringify({ action, ...body }),
-      });
+        signal: ctrl.signal,
+      }).finally(() => clearTimeout(timer));
       const data = await res.json();
       if (!data.ok) throw new StoryApiError(String(data.error || "error"));
       return data as T;
@@ -50,4 +54,28 @@ export function storyBeacon(action: string, body: Record<string, unknown>) {
   } catch {
     // best effort only
   }
+}
+
+/**
+ * Technical diagnostics (camera, audio, connection steps) saved to the player's
+ * Drive folder, so problems on a player's phone can be traced afterwards.
+ */
+const pendingLog: string[] = [];
+let logCode = "";
+let logTimer: ReturnType<typeof setTimeout> | null = null;
+
+export function storyLog(code: string, event: string) {
+  logCode = code;
+  const t = new Date().toTimeString().slice(0, 8);
+  pendingLog.push(`${t} ${event}`);
+  if (!logTimer) logTimer = setTimeout(flushStoryLog, 4000);
+}
+
+export function flushStoryLog(beacon = false) {
+  if (logTimer) clearTimeout(logTimer);
+  logTimer = null;
+  if (!pendingLog.length || !logCode) return;
+  const body = { code: logCode, events: pendingLog.splice(0), userAgent: navigator.userAgent };
+  if (beacon) storyBeacon("log", body);
+  else storyApi("log", body, 1).catch(() => {});
 }
