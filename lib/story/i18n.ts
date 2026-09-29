@@ -17,7 +17,7 @@ export const TOPIC_IDS = [
 
 const en = {
   langName: "English",
-  hello: (n: string) => `Namaskara, ${n}!`,
+  hello: (n: string) => (n ? `Namaskara, ${n}!` : "Namaskara!"),
   intro:
     "DMSA is creating impact stories of our players to raise support for wheelchair cricket. Maitri, our AI story volunteer, would love to hear your story.",
   howTitle: "Before you start",
@@ -105,7 +105,7 @@ const en = {
 
 const kn: typeof en = {
   langName: "ಕನ್ನಡ",
-  hello: (n: string) => `ನಮಸ್ಕಾರ, ${n}!`,
+  hello: (n: string) => (n ? `ನಮಸ್ಕಾರ, ${n}!` : "ನಮಸ್ಕಾರ!"),
   intro:
     "ವೀಲ್‌ಚೇರ್ ಕ್ರಿಕೆಟ್‌ಗೆ ಬೆಂಬಲ ಪಡೆಯಲು DMSA ನಮ್ಮ ಆಟಗಾರರ ಸ್ಫೂರ್ತಿಯ ಕಥೆಗಳನ್ನು ಸಿದ್ಧಪಡಿಸುತ್ತಿದೆ. ನಮ್ಮ AI ಕಥಾ ಸ್ವಯಂಸೇವಕಿ ಮೈತ್ರಿ ನಿಮ್ಮ ಕಥೆಯನ್ನು ಕೇಳಲು ಕಾಯುತ್ತಿದ್ದಾರೆ.",
   howTitle: "ಪ್ರಾರಂಭಿಸುವ ಮೊದಲು",

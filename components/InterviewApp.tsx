@@ -29,7 +29,8 @@ interface UploadItem {
 const TIP_ICONS = [Clock, Sun, Smartphone, BatteryCharging, Wifi];
 
 export default function InterviewApp({ code }: { code: string }) {
-  const [screen, setScreen] = useState<Screen>("loading");
+  // The welcome screen shows at once; the player's name fills in when the backend answers.
+  const [screen, setScreen] = useState<Screen>("welcome");
   const [session, setSession] = useState<Session | null>(null);
   const [lang, setLang] = useState<Lang>("kn");
   const [agreed, setAgreed] = useState(false);
@@ -69,27 +70,25 @@ export default function InterviewApp({ code }: { code: string }) {
     storyLog(code, `screen: ${screen}`);
   }, [screen, code]);
 
-  const [slow, setSlow] = useState(false);
+  const [sessionError, setSessionError] = useState("");
+  const langTouched = useRef(false);
+  const chooseLang = (l: Lang) => {
+    langTouched.current = true;
+    setLang(l);
+  };
   useEffect(() => {
-    const t = setTimeout(() => setSlow(true), 4000);
     const t0 = Date.now();
-    storyApi<Session & { ok: boolean }>("session", { code })
+    storyApi<Session & { ok: boolean }>("session", { code }, 2, 60000)
       .then((s) => {
-        clearTimeout(t);
         storyLog(code, `session ok in ${Math.round((Date.now() - t0) / 100) / 10}s`);
         setSession(s);
-        setLang(s.language);
-        setScreen("welcome");
+        if (!langTouched.current) setLang(s.language);
       })
       .catch((e) => {
-        clearTimeout(t);
         storyLog(code, `session failed: ${String(e?.message || e)}`);
         flushStoryLog();
         if (e instanceof StoryApiError && e.code === "unknown_code") setScreen("invalid");
-        else {
-          setErrorMsg(String(e?.message || e));
-          setScreen("error");
-        }
+        else setSessionError(String(e?.message || e));
       });
   }, [code]);
 
@@ -125,12 +124,6 @@ export default function InterviewApp({ code }: { code: string }) {
       {screen === "loading" && (
         <Centered>
           <Loader2 className="h-10 w-10 animate-spin text-teal-400" aria-label="Loading" />
-          {slow && (
-            <>
-              <p className="mt-6 max-w-xs text-center text-lg">{STRINGS.kn.pleaseWait}</p>
-              <p className="mt-2 max-w-xs text-center text-navy-200">{STRINGS.en.pleaseWait}</p>
-            </>
-          )}
         </Centered>
       )}
 
@@ -151,15 +144,15 @@ export default function InterviewApp({ code }: { code: string }) {
         </Centered>
       )}
 
-      {screen === "welcome" && session && (
+      {screen === "welcome" && (
         <Page>
           <div className="flex items-center justify-between">
             <Logo />
-            <LangToggle lang={lang} setLang={setLang} />
+            <LangToggle lang={lang} setLang={chooseLang} />
           </div>
-          <h1 className="mt-10 font-display text-5xl leading-none tracking-wide text-white">{t.hello(session.firstName)}</h1>
+          <h1 className="mt-10 font-display text-5xl leading-none tracking-wide text-white">{t.hello(session?.firstName || "")}</h1>
           <p className="mt-4 text-lg leading-relaxed text-navy-100">{t.intro}</p>
-          {session.done ? (
+          {session?.done ? (
             <>
               <p className="mt-6 rounded-lg bg-teal-900/60 p-4 text-teal-100">{t.alreadyDone}</p>
               <PrimaryButton onClick={() => setScreen("upload")}>
@@ -169,7 +162,7 @@ export default function InterviewApp({ code }: { code: string }) {
             </>
           ) : (
             <>
-              {session.hasEarlier && <p className="mt-6 rounded-lg bg-teal-900/60 p-4 text-teal-100">{t.welcomeBack}</p>}
+              {session?.hasEarlier && <p className="mt-6 rounded-lg bg-teal-900/60 p-4 text-teal-100">{t.welcomeBack}</p>}
               <h2 className="mt-8 font-heading text-sm font-bold uppercase tracking-widest text-teal-300">{t.howTitle}</h2>
               <ul className="mt-3 space-y-3">
                 {t.tips.map((tip, i) => {
@@ -228,7 +221,18 @@ export default function InterviewApp({ code }: { code: string }) {
             <>
               <SelfView stream={stream} className="mt-5 aspect-[3/4] w-full rounded-2xl" />
               <p className="mt-4 text-base text-navy-100">{t.looksGood}</p>
+              {!session && !sessionError && (
+                <p className="mt-4 flex items-center gap-2 text-sm text-navy-200">
+                  <Loader2 className="h-4 w-4 animate-spin" /> {STRINGS[lang].pleaseWait}
+                </p>
+              )}
+              {sessionError && (
+                <p className="mt-4 rounded-lg bg-red-900/60 p-3 text-sm">
+                  {t.error}. <button className="underline" onClick={() => location.reload()}>{t.tryAgain}</button>
+                </p>
+              )}
               <PrimaryButton
+                disabled={!session}
                 onClick={() => {
                   // Create and resume audio inside the tap itself: Samsung Internet
                   // and some other browsers refuse to start audio any later.

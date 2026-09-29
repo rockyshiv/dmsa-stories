@@ -35,6 +35,9 @@ export async function storyApi<T = Record<string, unknown>>(
         signal: ctrl.signal,
       }).finally(() => clearTimeout(timer));
       const data = await res.json();
+      // Google occasionally answers a POST with the web app's GET reply
+      // ({ service: ... }); that is not our answer, so try again.
+      if (data && data.service && !("error" in data) && action !== "ping") throw new Error("wrong reply from Google, retrying");
       if (!data.ok) throw new StoryApiError(String(data.error || "error"));
       return data as T;
     } catch (e) {
@@ -78,7 +81,8 @@ export function flushStoryLog(beacon = false) {
   if (!pendingLog.length || !logCode) return;
   const body = { code: logCode, events: pendingLog.splice(0), userAgent: navigator.userAgent };
   if (beacon) storyBeacon("log", body);
-  else storyApi("log", body, 2).catch(() => storyBeacon("log", body));
+  // One try with a long wait: retrying a slow-but-successful save only duplicates it.
+  else storyApi("log", body, 1, 45000).catch(() => storyBeacon("log", body));
 }
 
 /** Calls the admin API with the private key from Shiva's app link. */

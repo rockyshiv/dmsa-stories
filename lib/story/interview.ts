@@ -186,14 +186,19 @@ export class Interview {
     // free quota: try the next one.
     if (this.attemptsWithoutReady++ > 0) this.modelIndex = Math.min(this.modelIndex + 1, this.liveModels - 1);
     if (needHistory) await this.saveTranscript();
-    const t = await storyApi<{ wsUrl: string; model: string }>("liveToken", {
-      code: this.code,
-      lang: this.lang,
-      modelIndex: this.modelIndex,
-      withHistory: needHistory || (this.continuing && !this.readyOnce),
-      midCall: needHistory,
-      sessionId: this.sessionId,
-    });
+    const t = await storyApi<{ wsUrl: string; model: string }>(
+      "liveToken",
+      {
+        code: this.code,
+        lang: this.lang,
+        modelIndex: this.modelIndex,
+        withHistory: needHistory || (this.continuing && !this.readyOnce),
+        midCall: needHistory,
+        sessionId: this.sessionId,
+      },
+      3,
+      60000,
+    );
     this.log("token ok");
     return t;
   }
