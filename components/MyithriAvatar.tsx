@@ -1,9 +1,10 @@
 import { useId } from "react";
 
 /**
- * Myithri, DMSA's AI volunteer: a lean young woman with brown skin, glasses
- * and long dark hair, in a navy kurta with DMSA gold and teal. Drawn as SVG so
- * it stays sharp at any size and costs nothing to load.
+ * Myithri, DMSA's AI volunteer: a lean young woman with brown skin, hair
+ * pulled back from a side parting, thin rectangular glasses and small gold
+ * earrings, in a teal kurta with a maroon, gold-bordered dupatta. Drawn as SVG
+ * so it stays sharp at any size and costs nothing to load.
  */
 export default function MyithriAvatar({ className, title = "Myithri" }: { className?: string; title?: string }) {
   const id = useId().replace(/:/g, "");
@@ -15,8 +16,8 @@ export default function MyithriAvatar({ className, title = "Myithri" }: { classN
           <stop offset="1" stopColor="#1F4F9E" />
         </linearGradient>
         <linearGradient id={`sk${id}`} x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0" stopColor="#9A6443" />
-          <stop offset="1" stopColor="#85543A" />
+          <stop offset="0" stopColor="#7E4B2E" />
+          <stop offset="1" stopColor="#6B3E25" />
         </linearGradient>
         <clipPath id={`cl${id}`}>
           <circle cx="100" cy="100" r="100" />
@@ -24,41 +25,48 @@ export default function MyithriAvatar({ className, title = "Myithri" }: { classN
       </defs>
       <g clipPath={`url(#cl${id})`}>
         <rect width="200" height="200" fill={`url(#bg${id})`} />
-        {/* long hair behind */}
-        <path d="M62 88 C58 50 80 28 102 28 C128 28 144 50 140 90 C138 118 146 150 142 176 L60 176 C54 150 64 118 62 88 Z" fill="#1B1210" />
-        {/* neck and lean shoulders */}
-        <path d="M90 124 L110 124 L112 156 L88 156 Z" fill="#7A4B32" />
-        <path d="M40 200 C42 170 62 154 86 150 L100 162 L114 150 C138 154 158 170 160 200 Z" fill="#16336B" />
-        <path d="M86 150 L100 172 L114 150 L110 149 L100 164 L90 149 Z" fill="#D9A441" />
-        <path d="M114 150 C132 154 150 166 156 200 L138 200 C134 178 126 164 110 156 Z" fill="#3CCDCD" opacity="0.9" />
-        {/* ears with gold studs */}
-        <ellipse cx="74" cy="96" rx="5.5" ry="8.5" fill="#85543A" />
-        <ellipse cx="126" cy="96" rx="5.5" ry="8.5" fill="#85543A" />
-        <circle cx="74" cy="106" r="2.4" fill="#E9BD5C" />
-        <circle cx="126" cy="106" r="2.4" fill="#E9BD5C" />
-        {/* face */}
-        <path d="M76 88 C76 60 87 47 100 47 C113 47 124 60 124 88 C124 114 113 133 100 133 C87 133 76 114 76 88 Z" fill={`url(#sk${id})`} />
-        {/* side-swept hair */}
-        <path d="M73 84 C68 52 85 37 104 37 C123 37 135 52 128 78 C123 64 113 56 98 56 C91 63 83 72 73 84 Z" fill="#1B1210" />
-        <path d="M98 56 C104 48 114 45 123 49" stroke="#3A2A24" strokeWidth="1.4" fill="none" opacity="0.6" />
-        {/* brows and eyes */}
-        <path d="M82 77 Q89 73.5 95.5 76" stroke="#1B1210" strokeWidth="2.4" fill="none" strokeLinecap="round" />
-        <path d="M104.5 76 Q111 73.5 118 77" stroke="#1B1210" strokeWidth="2.4" fill="none" strokeLinecap="round" />
-        <ellipse cx="88" cy="90" rx="3.6" ry="2.6" fill="#1B1210" />
-        <ellipse cx="112" cy="90" rx="3.6" ry="2.6" fill="#1B1210" />
-        <circle cx="89.2" cy="89.2" r="0.9" fill="#fff" />
-        <circle cx="113.2" cy="89.2" r="0.9" fill="#fff" />
-        {/* glasses */}
-        <rect x="78.5" y="82" width="19.5" height="15" rx="5.5" fill="#fff" fillOpacity="0.12" stroke="#1E1E24" strokeWidth="2.2" />
-        <rect x="102" y="82" width="19.5" height="15" rx="5.5" fill="#fff" fillOpacity="0.12" stroke="#1E1E24" strokeWidth="2.2" />
-        <path d="M98 88 Q100 86 102 88" stroke="#1E1E24" strokeWidth="2" fill="none" />
-        <path d="M78.5 87 L74.5 86" stroke="#1E1E24" strokeWidth="2" />
-        <path d="M121.5 87 L125.5 86" stroke="#1E1E24" strokeWidth="2" />
-        {/* nose, cheeks, smile */}
-        <path d="M100 99 Q98.6 104 100.6 106" stroke="#6E4230" strokeWidth="1.4" fill="none" strokeLinecap="round" opacity="0.8" />
-        <ellipse cx="85" cy="106" rx="4.5" ry="2.8" fill="#C0705A" opacity="0.35" />
-        <ellipse cx="115" cy="106" rx="4.5" ry="2.8" fill="#C0705A" opacity="0.35" />
-        <path d="M91 114 Q100 121 109 114" stroke="#5E2622" strokeWidth="2.4" fill="none" strokeLinecap="round" />
+        <g transform="translate(100 106) scale(1.14) translate(-100 -100)">
+          {/* hair around the head, pulled back */}
+          <path d="M73 96 C68 60 83 36 100 36 C117 36 132 60 127 96 C124 104 118 108 112 110 L88 110 C82 108 76 104 73 96 Z" fill="#141010" />
+          {/* neck */}
+          <path d="M91 124 L109 124 L111 154 L89 154 Z" fill="#5E3620" />
+          {/* teal kurta */}
+          <path d="M40 200 C42 172 62 156 88 151 L100 160 L112 151 C138 156 158 172 160 200 Z" fill="#1B7F86" />
+          {/* maroon dupatta over both shoulders with a gold border */}
+          <path d="M44 200 C46 176 60 160 84 152 C88 166 92 184 96 200 Z" fill="#6B1F3A" />
+          <path d="M156 200 C154 176 140 160 116 152 C112 166 108 184 104 200 Z" fill="#6B1F3A" />
+          <path d="M84 152 C88 166 92 184 96 200" stroke="#D9A441" strokeWidth="4" fill="none" />
+          <path d="M116 152 C112 166 108 184 104 200" stroke="#D9A441" strokeWidth="4" fill="none" />
+          <path d="M86.5 160 C89.5 172 92.5 186 95 200" stroke="#7A2A45" strokeWidth="1.2" fill="none" strokeDasharray="3 3" />
+          <path d="M113.5 160 C110.5 172 107.5 186 105 200" stroke="#7A2A45" strokeWidth="1.2" fill="none" strokeDasharray="3 3" />
+          {/* ears with small gold earrings */}
+          <ellipse cx="76" cy="96" rx="5" ry="8" fill="#6B3E25" />
+          <ellipse cx="124" cy="96" rx="5" ry="8" fill="#6B3E25" />
+          <circle cx="76" cy="105.5" r="2.2" fill="#E9BD5C" />
+          <circle cx="124" cy="105.5" r="2.2" fill="#E9BD5C" />
+          {/* slim face, narrow chin */}
+          <path d="M78 88 C78 61 88 48 100 48 C112 48 122 61 122 88 C122 112 112 133 100 136 C88 133 78 112 78 88 Z" fill={`url(#sk${id})`} />
+          {/* hairline with a side parting */}
+          <path d="M77 86 C74 58 86 42 100 42 C114 42 126 58 123 86 C120 70 114 60 104 56 C96 58 86 66 77 86 Z" fill="#141010" />
+          <path d="M104 56 C102.5 51 101 47 100 43.5" stroke="#3A2E2A" strokeWidth="1" fill="none" opacity="0.8" />
+          <path d="M79.5 80 C78.6 85 78.8 90 79.8 94" stroke="#141010" strokeWidth="1" fill="none" opacity="0.55" />
+          {/* brows and eyes */}
+          <path d="M83.5 79 Q89.5 76 95.5 78" stroke="#141010" strokeWidth="2.1" fill="none" strokeLinecap="round" />
+          <path d="M104.5 78 Q110.5 76 116.5 79" stroke="#141010" strokeWidth="2.1" fill="none" strokeLinecap="round" />
+          <ellipse cx="89.5" cy="89" rx="3.3" ry="2.3" fill="#141010" />
+          <ellipse cx="110.5" cy="89" rx="3.3" ry="2.3" fill="#141010" />
+          <circle cx="90.6" cy="88.3" r="0.8" fill="#fff" />
+          <circle cx="111.6" cy="88.3" r="0.8" fill="#fff" />
+          {/* thin rectangular glasses */}
+          <rect x="80.5" y="83" width="18" height="11.5" rx="3" fill="#fff" fillOpacity="0.1" stroke="#1A1A20" strokeWidth="1.5" />
+          <rect x="101.5" y="83" width="18" height="11.5" rx="3" fill="#fff" fillOpacity="0.1" stroke="#1A1A20" strokeWidth="1.5" />
+          <path d="M98.5 87.5 Q100 86 101.5 87.5" stroke="#1A1A20" strokeWidth="1.5" fill="none" />
+          <path d="M80.5 87 L76.5 86.5" stroke="#1A1A20" strokeWidth="1.5" />
+          <path d="M119.5 87 L123.5 86.5" stroke="#1A1A20" strokeWidth="1.5" />
+          {/* nose and a gentle closed-lip smile */}
+          <path d="M100 97 Q98.4 103.5 100.8 105.5" stroke="#4E2B18" strokeWidth="1.3" fill="none" strokeLinecap="round" opacity="0.8" />
+          <path d="M93 114.5 Q100 118.5 107 114.5" stroke="#4A1F1C" strokeWidth="2.2" fill="none" strokeLinecap="round" />
+        </g>
       </g>
     </svg>
   );
