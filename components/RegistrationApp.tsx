@@ -4,8 +4,10 @@ import { useEffect, useRef, useState } from "react";
 import { Camera, Check, ChevronRight, Keyboard, Loader2, Mic, Pencil, Phone, UserPlus } from "lucide-react";
 import { flushStoryLog, storyApi, storyLog } from "@/lib/story/api";
 import { STRINGS, type Lang } from "@/lib/story/i18n";
-import { getCameraAndMic } from "@/lib/story/interview";
+import { getCameraAndMic, getMicOnly, unlockAudio } from "@/lib/story/interview";
 import {
+  CameraBlocked,
+  inRealChrome,
   Centered,
   InterviewScreen,
   LangToggle,
@@ -240,7 +242,10 @@ export default function RegistrationApp({ campaign }: { campaign: string }) {
   const ensureCode = () => {
     if (code) return Promise.resolve(code);
     if (!starting.current) {
-      starting.current = storyApi<{ code: string; id: string }>("regStart", { campaign, lang }, 2, 60000)
+      // One id per attempt: if Google loses the reply and we retry, the server
+      // hands back the same registration instead of making a second one.
+      const requestId = typeof crypto !== "undefined" && crypto.randomUUID ? crypto.randomUUID() : `${Date.now()}-${Math.random().toString(36).slice(2)}`;
+      starting.current = storyApi<{ code: string; id: string }>("regStart", { campaign, lang, requestId }, 3, 60000)
         .then((res) => {
           setCode(res.code);
           setRegId(res.id);
@@ -269,6 +274,15 @@ export default function RegistrationApp({ campaign }: { campaign: string }) {
     } finally {
       clearTimeout(slowTimer);
       setCamSlow(false);
+    }
+  };
+
+  const useVoiceOnly = async () => {
+    try {
+      setStream(await getMicOnly());
+      setCamError(false);
+    } catch {
+      setCamError("blocked");
     }
   };
 
@@ -398,17 +412,26 @@ export default function RegistrationApp({ campaign }: { campaign: string }) {
             <>
               <p className="mt-3 text-base text-navy-100">{r.cameraHelp}</p>
               {camError && <p className="mt-4 rounded-lg bg-red-900/60 p-4 text-red-100">{camError === "dismissed" ? t.cameraDismissed : t.cameraDenied}</p>}
-              {(camSlow || camError === "blocked") && <OpenInChrome code={logId} text={t.noCameraQuestion} button={t.openInChromeButton} />}
-              <StickyBar>
-                <PrimaryButton onClick={askCamera}>
-                  <Camera className="h-5 w-5" /> {t.allow}
-                </PrimaryButton>
-              </StickyBar>
+              {camError === "blocked" && <CameraBlocked lang={lang} onRetry={askCamera} onVoiceOnly={useVoiceOnly} />}
+              {(camSlow || camError === "blocked") && !inRealChrome() && <OpenInChrome code={logId} text={t.noCameraQuestion} button={t.openInChromeButton} />}
+              {camError !== "blocked" && (
+                <StickyBar>
+                  <PrimaryButton onClick={askCamera}>
+                    <Camera className="h-5 w-5" /> {t.allow}
+                  </PrimaryButton>
+                </StickyBar>
+              )}
             </>
           ) : (
             <>
-              <SelfView stream={stream} className="mx-auto mt-5 aspect-[3/4] h-[36vh] rounded-2xl" />
-              <p className="mt-4 text-base text-navy-100">{t.looksGood}</p>
+              {stream.getVideoTracks().length ? (
+                <>
+                  <SelfView stream={stream} className="mx-auto mt-5 aspect-[3/4] h-[36vh] rounded-2xl" />
+                  <p className="mt-4 text-base text-navy-100">{t.looksGood}</p>
+                </>
+              ) : (
+                <p className="mt-5 rounded-lg bg-teal-900/60 p-4 text-teal-100">{t.voiceOnlyNote}</p>
+              )}
               {!code && (
                 <p className="mt-4 flex items-center gap-2 text-sm text-navy-200">
                   <Loader2 className="h-4 w-4 animate-spin" /> {t.pleaseWait}
@@ -421,7 +444,7 @@ export default function RegistrationApp({ campaign }: { campaign: string }) {
                     // Audio must be created inside the tap (Samsung Internet).
                     const Ctx = window.AudioContext || (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
                     const ctx = new Ctx();
-                    ctx.resume().catch(() => {});
+                    unlockAudio(ctx);
                     setAudioCtx(ctx);
                     setTalked(true);
                     setScreen("interview");
@@ -455,7 +478,7 @@ export default function RegistrationApp({ campaign }: { campaign: string }) {
             stream.getTracks().forEach((tr) => tr.stop());
             setScreen("review");
           }}
-          engineOptions={{ recordVideo: false, endTool: "finish_registration", minEndSeconds: 45 }}
+          engineOptions={{ recordVideo: false, endTool: "finish_registration", minEndSeconds: 45, storyTimeNotes: false }}
           onField={(k, v) => {
             const f = fields.find((x) => x.key === k);
             setAnswers((a) => ({ ...a, [k]: f ? normalise(f, v) : v }));

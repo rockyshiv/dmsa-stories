@@ -56,7 +56,7 @@ export class LiveSession {
     private ctx: AudioContext,
     private output: AudioNode,
     /** needHistory: a fresh session is needed after a drop, so Maitri must be told what was already said */
-    private getToken: (needHistory: boolean) => Promise<LiveToken>,
+    private getToken: (needHistory: boolean, resuming: boolean) => Promise<LiveToken>,
     private h: LiveHandlers,
   ) {}
 
@@ -71,7 +71,7 @@ export class LiveSession {
   private async open(reconnect: boolean) {
     this.h.onStatus?.(reconnect ? "reconnecting" : "connecting");
     const resuming = !!this.handle;
-    const tok = await this.getToken(reconnect && !resuming);
+    const tok = await this.getToken(reconnect && !resuming, resuming);
     this.resuming = resuming;
     this.h.onLog?.(`connecting ${tok.model}${resuming ? " (resume)" : ""}`);
     const ws = new WebSocket(tok.wsUrl);

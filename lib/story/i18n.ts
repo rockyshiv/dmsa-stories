@@ -46,7 +46,7 @@ const en = {
   cameraHelp: "Your phone will ask to use the camera and microphone - choose Allow, so Maitri can hear you and the video can be recorded. If nothing appears, tap the button below.",
   allow: "Allow camera & microphone",
   cameraDenied:
-    "Camera or microphone is blocked. Tap the lock icon next to the website address, allow Camera and Microphone, then reload this page.",
+    "Your phone has blocked the camera and microphone for this page. To switch them back on:",
   looksGood: "Can you see your face clearly? If yes, you are ready.",
   start: "Start talking with Maitri",
   maitriRole: "DMSA's AI story volunteer",
@@ -105,6 +105,17 @@ const en = {
   openInChrome: "This link opened inside another app, where the camera may not work. Please open it in Chrome.",
   openInChromeButton: "Open in Chrome",
   noCameraQuestion: "No question asking for the camera? Your phone's browser may not support it. Please open this link in Chrome (on iPhone: Safari).",
+  cameraBlockedSteps: [
+    "Tap the small icon at the left of the web address (a lock or ⓘ).",
+    "Tap \"Permissions\" or \"Site settings\".",
+    "Turn on Camera and Microphone.",
+    "Come back here and tap \"Try again\".",
+  ],
+  tryAgainCamera: "Try again",
+  voiceOnly: "Continue with voice only",
+  voiceOnlyNote: "No video will be recorded - Maitri will only hear you.",
+  tapToHear: "Tap here to hear Maitri",
+  tapToHearHelp: "Your phone has paused the sound. One tap turns it on. Also check that your phone is not on silent.",
 };
 
 const kn: typeof en = {
@@ -138,7 +149,7 @@ const kn: typeof en = {
   cameraHelp: "ನಿಮ್ಮ ಫೋನ್ ಕ್ಯಾಮೆರಾ ಮತ್ತು ಮೈಕ್ ಬಳಸಲು ಅನುಮತಿ ಕೇಳುತ್ತದೆ - Allow ಆಯ್ಕೆ ಮಾಡಿ. ಆಗ ಮೈತ್ರಿ ನಿಮ್ಮ ಮಾತು ಕೇಳಬಹುದು ಮತ್ತು ವೀಡಿಯೊ ರೆಕಾರ್ಡ್ ಆಗುತ್ತದೆ. ಏನೂ ಕಾಣಿಸದಿದ್ದರೆ, ಕೆಳಗಿನ ಬಟನ್ ಒತ್ತಿ.",
   allow: "ಕ್ಯಾಮೆರಾ ಮತ್ತು ಮೈಕ್‌ಗೆ ಅನುಮತಿ ನೀಡಿ",
   cameraDenied:
-    "ಕ್ಯಾಮೆರಾ ಅಥವಾ ಮೈಕ್ ಬ್ಲಾಕ್ ಆಗಿದೆ. ವೆಬ್‌ಸೈಟ್ ವಿಳಾಸದ ಪಕ್ಕದ ಬೀಗದ ಚಿಹ್ನೆ ಒತ್ತಿ, Camera ಮತ್ತು Microphone ಗೆ Allow ಮಾಡಿ, ನಂತರ ಪುಟವನ್ನು ರೀಲೋಡ್ ಮಾಡಿ.",
+    "ನಿಮ್ಮ ಫೋನ್ ಈ ಪುಟಕ್ಕೆ ಕ್ಯಾಮೆರಾ ಮತ್ತು ಮೈಕ್ ಬ್ಲಾಕ್ ಮಾಡಿದೆ. ಮತ್ತೆ ಆನ್ ಮಾಡಲು:",
   looksGood: "ನಿಮ್ಮ ಮುಖ ಸ್ಪಷ್ಟವಾಗಿ ಕಾಣುತ್ತಿದೆಯೇ? ಹೌದಾದರೆ, ನೀವು ಸಿದ್ಧ.",
   start: "ಮೈತ್ರಿ ಜೊತೆ ಮಾತು ಆರಂಭಿಸಿ",
   maitriRole: "DMSA ಯ AI ಕಥಾ ಸ್ವಯಂಸೇವಕಿ",
@@ -197,6 +208,17 @@ const kn: typeof en = {
   openInChrome: "ಈ ಲಿಂಕ್ ಬೇರೆ ಆ್ಯಪ್‌ನ ಒಳಗೆ ತೆರೆದಿದೆ, ಅಲ್ಲಿ ಕ್ಯಾಮೆರಾ ಕೆಲಸ ಮಾಡದಿರಬಹುದು. ದಯವಿಟ್ಟು Chrome ನಲ್ಲಿ ತೆರೆಯಿರಿ.",
   openInChromeButton: "Chrome ನಲ್ಲಿ ತೆರೆಯಿರಿ",
   noCameraQuestion: "ಕ್ಯಾಮೆರಾ ಅನುಮತಿ ಕೇಳುವ ಪ್ರಶ್ನೆ ಕಾಣುತ್ತಿಲ್ಲವೇ? ನಿಮ್ಮ ಫೋನ್‌ನ ಬ್ರೌಸರ್ ಇದನ್ನು ಬೆಂಬಲಿಸದಿರಬಹುದು. ದಯವಿಟ್ಟು ಈ ಲಿಂಕ್ ಅನ್ನು Chrome ನಲ್ಲಿ ತೆರೆಯಿರಿ (iPhone ನಲ್ಲಿ Safari).",
+  cameraBlockedSteps: [
+    "ವೆಬ್ ವಿಳಾಸದ ಎಡಭಾಗದಲ್ಲಿರುವ ಸಣ್ಣ ಚಿಹ್ನೆ (ಬೀಗ ಅಥವಾ ⓘ) ಒತ್ತಿ.",
+    "\"Permissions\" ಅಥವಾ \"Site settings\" ಒತ್ತಿ.",
+    "Camera ಮತ್ತು Microphone ಆನ್ ಮಾಡಿ.",
+    "ಇಲ್ಲಿಗೆ ಹಿಂದಿರುಗಿ \"ಮತ್ತೆ ಪ್ರಯತ್ನಿಸಿ\" ಒತ್ತಿ.",
+  ],
+  tryAgainCamera: "ಮತ್ತೆ ಪ್ರಯತ್ನಿಸಿ",
+  voiceOnly: "ಧ್ವನಿ ಮಾತ್ರ ಬಳಸಿ ಮುಂದುವರಿಸಿ",
+  voiceOnlyNote: "ವೀಡಿಯೊ ರೆಕಾರ್ಡ್ ಆಗುವುದಿಲ್ಲ - ಮೈತ್ರಿ ನಿಮ್ಮ ಧ್ವನಿಯನ್ನು ಮಾತ್ರ ಕೇಳುತ್ತಾರೆ.",
+  tapToHear: "ಮೈತ್ರಿಯ ಧ್ವನಿ ಕೇಳಲು ಇಲ್ಲಿ ಒತ್ತಿ",
+  tapToHearHelp: "ನಿಮ್ಮ ಫೋನ್ ಧ್ವನಿಯನ್ನು ನಿಲ್ಲಿಸಿದೆ. ಒಂದು ಬಾರಿ ಒತ್ತಿದರೆ ಆನ್ ಆಗುತ್ತದೆ. ಫೋನ್ ಸೈಲೆಂಟ್‌ನಲ್ಲಿ ಇಲ್ಲವೆಂದು ಖಚಿತಪಡಿಸಿಕೊಳ್ಳಿ.",
 };
 
 export const STRINGS = { en, kn };

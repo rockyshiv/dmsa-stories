@@ -26,6 +26,8 @@ export interface InterviewCallbacks {
   onField?: (field: string, value: string) => void;
   /** Seconds left before a photo is taken (3, 2, 1), then 0. */
   onCountdown?: (n: number) => void;
+  /** The phone is not playing sound (iPhone often needs one more tap). */
+  onAudioBlocked?: (blocked: boolean) => void;
 }
 
 export interface InterviewOptions {
@@ -35,6 +37,8 @@ export interface InterviewOptions {
   endTool?: string;
   /** Maitri cannot end on her own before this many seconds (the player can). */
   minEndSeconds?: number;
+  /** Story-interview time reminders ("move to dreams and donors"). Off for forms. */
+  storyTimeNotes?: boolean;
 }
 
 const RECORDER_TYPES = [
@@ -49,6 +53,36 @@ export async function getCameraAndMic(): Promise<MediaStream> {
     video: { facingMode: "user", width: { ideal: 1280 }, height: { ideal: 720 }, frameRate: { ideal: 24, max: 30 } },
     audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true, channelCount: 1 },
   });
+}
+
+/** Voice only, for phones where the camera is blocked. */
+export async function getMicOnly(): Promise<MediaStream> {
+  return navigator.mediaDevices.getUserMedia({
+    audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true, channelCount: 1 },
+  });
+}
+
+/**
+ * Call inside a tap. iPhones keep web audio switched off (or send it to the
+ * earpiece) unless the page asks for a call-style audio session and plays
+ * something during a tap.
+ */
+export function unlockAudio(ctx: AudioContext) {
+  try {
+    const nav = navigator as unknown as { audioSession?: { type: string } };
+    if (nav.audioSession) nav.audioSession.type = "play-and-record";
+  } catch {
+    /* older browsers */
+  }
+  ctx.resume().catch(() => {});
+  try {
+    const src = ctx.createBufferSource();
+    src.buffer = ctx.createBuffer(1, 1, 22050);
+    src.connect(ctx.destination);
+    src.start(0);
+  } catch {
+    /* best effort */
+  }
 }
 
 function stamp() {
@@ -85,7 +119,7 @@ export class Interview {
   private timer: ReturnType<typeof setInterval> | null = null;
   private dirty = false;
   private lastSave = 0;
-  private nudged = { soon: false, over: false };
+  private nudged = { half: false, soon: false, over: false };
   private ending = false;
   private finished: Promise<boolean> | null = null;
   private modelIndex = 0;
@@ -113,6 +147,15 @@ export class Interview {
     storyLog(this.code, event);
   }
 
+  /** From the "tap to hear Maitri" button. */
+  tapToUnlockAudio() {
+    unlockAudio(this.ctx);
+    setTimeout(() => {
+      this.log(`audio after tap: ${this.ctx.state}`);
+      this.cb.onAudioBlocked?.(this.ctx.state !== "running");
+    }, 400);
+  }
+
   get speaking() {
     return this.live?.maitriSpeaking ?? false;
   }
@@ -130,6 +173,12 @@ export class Interview {
       await Promise.race([this.ctx.resume(), new Promise((r) => setTimeout(r, 3000))]);
       this.log(`audio after resume: ${this.ctx.state}`);
     }
+    // If sound is still off (iPhone), the page asks the player for one tap.
+    this.cb.onAudioBlocked?.(this.ctx.state !== "running");
+    this.ctx.onstatechange = () => {
+      this.log(`audio ${this.ctx.state}`);
+      this.cb.onAudioBlocked?.(this.ctx.state !== "running" && !this.ending);
+    };
     if (!this.ctx.audioWorklet) throw new Error("This browser cannot process audio. Please open the link in Google Chrome.");
     await this.ctx.audioWorklet.addModule(`${process.env.NEXT_PUBLIC_BASE_PATH}/pcm-capture-worklet.js`);
     this.log("audio worklet ready");
@@ -148,7 +197,7 @@ export class Interview {
     mic.connect(recMix);
     voice.connect(recMix);
 
-    this.live = new LiveSession(this.ctx, voice, (needHistory) => this.token(needHistory), {
+    this.live = new LiveSession(this.ctx, voice, (needHistory, resuming) => this.token(needHistory, resuming), {
       onStatus: (s) => this.cb.onStatus(s),
       onReady: (resumed) => {
         this.attemptsWithoutReady = 0;
@@ -196,10 +245,11 @@ export class Interview {
     await this.live.start();
   }
 
-  private async token(needHistory: boolean) {
+  private async token(needHistory: boolean, resuming = false) {
     // A connection that never became ready is most likely a model out of
-    // free quota: try the next one.
-    if (this.attemptsWithoutReady++ > 0) this.modelIndex = Math.min(this.modelIndex + 1, this.liveModels - 1);
+    // free quota: try the next one. Not while resuming: a conversation can
+    // only be resumed on the model it started on.
+    if (this.attemptsWithoutReady++ > 0 && !resuming) this.modelIndex = Math.min(this.modelIndex + 1, this.liveModels - 1);
     if (needHistory) await this.saveTranscript();
     const t = await storyApi<{ wsUrl: string; model: string }>(
       "liveToken",
@@ -303,9 +353,16 @@ export class Interview {
     if (name === (this.opts.endTool || "end_interview")) {
       // Guard against ending by mistake right at the start: only the player
       // (End button / [END]) can finish early.
-      if (!this.endRequested && this.elapsed < (this.opts.minEndSeconds ?? 120)) {
+      if (!this.endRequested && this.elapsed < this.minEnd) {
         this.log(`blocked early end_interview at ${Math.round(this.elapsed)}s`);
-        return { ok: false, error: "Too early - the interview has only just started. Do not end. Continue with the next question." };
+        const mins = Math.max(1, Math.round(this.elapsed / 60));
+        return {
+          ok: false,
+          error:
+            `Too early: only about ${mins} of ${this.minutes} minutes so far. Do not end and do not say goodbye. ` +
+            "Go back to a topic the player touched only briefly and ask for a specific memory, a person, a moment or a number. " +
+            "If the player clearly said they want to stop, tell them kindly to tap the red End button.",
+        };
       }
       this.log(`end_interview at ${Math.round(this.elapsed)}s`);
       this.completed = args.completed !== false;
@@ -329,10 +386,28 @@ export class Interview {
     return true;
   }
 
+  /** Maitri may not end on her own before this (the player always can). */
+  private get minEnd() {
+    if (this.opts.minEndSeconds !== undefined) return this.opts.minEndSeconds;
+    // A follow-up chat can be short; a first interview should use most of its time.
+    return this.continuing ? 180 : Math.round(this.minutes * 60 * 0.6);
+  }
+
   private tick() {
     const s = this.elapsed;
     this.cb.onTick(s);
     const target = this.minutes * 60;
+    if (this.opts.storyTimeNotes === false) {
+      if (s > 30 * 60 && !this.ending) this.finish();
+      if (this.dirty && Date.now() - this.lastSave > 30000) this.saveTranscript();
+      return;
+    }
+    if (!this.nudged.half && !this.continuing && s > target * 0.35 && s < target * 0.6) {
+      this.nudged.half = true;
+      this.live.sendNote(
+        `[TIME] About ${Math.round(s / 60)} of ${this.minutes} minutes so far - plenty of time left. Slow down and go deeper: ask for specific moments, names, feelings and numbers before moving on.`,
+      );
+    }
     if (!this.nudged.soon && s > target - 180) {
       this.nudged.soon = true;
       this.live.sendNote("[TIME] About 3 minutes left. If dreams and the message to donors are not covered yet, move to them soon.");

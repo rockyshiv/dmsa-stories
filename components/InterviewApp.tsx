@@ -1,10 +1,10 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { BatteryCharging, Camera, Check, ChevronRight, Clock, ImagePlus, Loader2, Mic, Pause, Play, SkipForward, Smartphone, Square, Sun, Wifi } from "lucide-react";
+import { BatteryCharging, Camera, Check, ChevronRight, Clock, ImagePlus, Loader2, Mic, Pause, Play, SkipForward, Smartphone, Square, Sun, Volume2, Wifi } from "lucide-react";
 import { flushStoryLog, storyApi, StoryApiError, storyLog } from "@/lib/story/api";
 import { STRINGS, type Lang } from "@/lib/story/i18n";
-import { getCameraAndMic, Interview, type InterviewOptions } from "@/lib/story/interview";
+import { getCameraAndMic, getMicOnly, Interview, unlockAudio, type InterviewOptions } from "@/lib/story/interview";
 import { uploadFile } from "@/lib/story/upload";
 
 type Screen = "loading" | "invalid" | "welcome" | "consent" | "camera" | "interview" | "saving" | "upload" | "thanks" | "error";
@@ -46,6 +46,34 @@ export function OpenInChrome({ code, text, button }: { code: string; text: strin
           {button}
         </a>
       )}
+    </div>
+  );
+}
+
+/** Already in Google Chrome itself: "Open in Chrome" would only reload this page. */
+export function inRealChrome() {
+  if (typeof navigator === "undefined") return false;
+  const ua = navigator.userAgent;
+  return /Chrome\/\d+/.test(ua) && !/; wv\)|SamsungBrowser|EdgA|OPR|FBAN|FBAV|Instagram|MiuiBrowser|HeyTap|UCBrowser|YaBrowser|Line\//.test(ua);
+}
+
+/** Camera blocked for this site: how to switch it back on, plus a voice-only way forward. */
+export function CameraBlocked({ lang, onRetry, onVoiceOnly }: { lang: Lang; onRetry: () => void; onVoiceOnly: () => void }) {
+  const t = STRINGS[lang];
+  return (
+    <div className="mt-4 rounded-xl bg-white/5 p-4">
+      <ol className="list-decimal space-y-2 pl-5 text-base text-navy-50">
+        {t.cameraBlockedSteps.map((s, i) => (
+          <li key={i}>{s}</li>
+        ))}
+      </ol>
+      <SecondaryButton onClick={onRetry}>
+        <Camera className="h-5 w-5" /> {t.tryAgainCamera}
+      </SecondaryButton>
+      <SecondaryButton onClick={onVoiceOnly}>
+        <Mic className="h-5 w-5" /> {t.voiceOnly}
+      </SecondaryButton>
+      <p className="mt-2 text-center text-sm text-navy-200">{t.voiceOnlyNote}</p>
     </div>
   );
 }
@@ -147,6 +175,22 @@ export default function InterviewApp({ code }: { code: string }) {
       flushStoryLog();
       // "Dismissed" just means the pop-up was closed: asking again works.
       setCamError(/dismiss/i.test(String((e as Error)?.message)) ? "dismissed" : "blocked");
+    }
+  };
+
+  const [voiceOnly, setVoiceOnly] = useState(false);
+  const useVoiceOnly = async () => {
+    storyLog(code, "trying voice only");
+    try {
+      const s = await getMicOnly();
+      storyLog(code, `voice only ok: ${s.getAudioTracks()[0]?.label || "?"}`);
+      setVoiceOnly(true);
+      setCamError(false);
+      setStream(s);
+    } catch (e) {
+      storyLog(code, `voice only failed: ${(e as Error)?.name}`);
+      flushStoryLog();
+      setCamError("blocked");
     }
   };
 
@@ -273,17 +317,26 @@ export default function InterviewApp({ code }: { code: string }) {
             <>
               <p className="mt-3 text-base text-navy-100">{t.cameraHelp}</p>
               {camError && <p className="mt-4 rounded-lg bg-red-900/60 p-4 text-red-100">{camError === "dismissed" ? t.cameraDismissed : t.cameraDenied}</p>}
-              {(camSlow || camError === "blocked") && <OpenInChrome code={code} text={t.noCameraQuestion} button={t.openInChromeButton} />}
-              <StickyBar>
-                <PrimaryButton onClick={askCamera}>
-                  <Camera className="h-5 w-5" /> {t.allow}
-                </PrimaryButton>
-              </StickyBar>
+              {camError === "blocked" && <CameraBlocked lang={lang} onRetry={askCamera} onVoiceOnly={useVoiceOnly} />}
+              {(camSlow || camError === "blocked") && !inRealChrome() && <OpenInChrome code={code} text={t.noCameraQuestion} button={t.openInChromeButton} />}
+              {camError !== "blocked" && (
+                <StickyBar>
+                  <PrimaryButton onClick={askCamera}>
+                    <Camera className="h-5 w-5" /> {t.allow}
+                  </PrimaryButton>
+                </StickyBar>
+              )}
             </>
           ) : (
             <>
-              <SelfView stream={stream} className="mx-auto mt-5 aspect-[3/4] h-[36vh] rounded-2xl" />
-              <p className="mt-4 text-base text-navy-100">{t.looksGood}</p>
+              {voiceOnly ? (
+                <p className="mt-5 rounded-lg bg-teal-900/60 p-4 text-teal-100">{t.voiceOnlyNote}</p>
+              ) : (
+                <>
+                  <SelfView stream={stream} className="mx-auto mt-5 aspect-[3/4] h-[36vh] rounded-2xl" />
+                  <p className="mt-4 text-base text-navy-100">{t.looksGood}</p>
+                </>
+              )}
               {!session && !sessionError && (
                 <p className="mt-4 flex items-center gap-2 text-sm text-navy-200">
                   <Loader2 className="h-4 w-4 animate-spin" /> {STRINGS[lang].pleaseWait}
@@ -301,7 +354,7 @@ export default function InterviewApp({ code }: { code: string }) {
                     // and some other browsers refuse to start audio any later.
                     const Ctx = window.AudioContext || (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
                     const ctx = new Ctx();
-                    ctx.resume().catch(() => {});
+                    unlockAudio(ctx);
                     storyLog(code, `start tapped, audio ${ctx.state}`);
                     setAudioCtx(ctx);
                     setScreen("interview");
@@ -329,6 +382,7 @@ export default function InterviewApp({ code }: { code: string }) {
             setErrorMsg(m);
             setScreen("error");
           }}
+          engineOptions={voiceOnly ? { recordVideo: false } : undefined}
         />
       )}
 
@@ -394,6 +448,7 @@ export function InterviewScreen({
   const [speaking, setSpeaking] = useState(false);
   const [paused, setPaused] = useState(false);
   const [countdown, setCountdown] = useState(0);
+  const [audioBlocked, setAudioBlocked] = useState(false);
   const [confirmEnd, setConfirmEnd] = useState(false);
   const [flash, setFlash] = useState(false);
   const [save, setSave] = useState({ sent: 0, pending: 0 });
@@ -426,6 +481,7 @@ export function InterviewScreen({
       onFatal,
       onField,
       onCountdown: setCountdown,
+      onAudioBlocked: setAudioBlocked,
     }, audioCtx, engineOptions);
     engine.current = it;
     it.start().catch((e) => {
@@ -587,6 +643,19 @@ export function InterviewScreen({
         />
         <ControlButton onClick={() => setConfirmEnd(true)} icon={<Square className="h-6 w-6" />} label={t.end} danger />
       </div>
+
+      {audioBlocked && !saving && (
+        <div className="fixed inset-0 z-20 flex flex-col items-center justify-center bg-navy-950/90 p-6 text-center" role="dialog" aria-modal="true">
+          <button
+            onClick={() => engine.current?.tapToUnlockAudio()}
+            className="flex w-full max-w-sm flex-col items-center gap-3 rounded-3xl bg-teal-500 px-6 py-8 text-2xl font-bold text-white shadow-2xl"
+          >
+            <Volume2 className="h-12 w-12" aria-hidden />
+            {t.tapToHear}
+          </button>
+          <p className="mt-5 max-w-sm text-base text-navy-100">{t.tapToHearHelp}</p>
+        </div>
+      )}
 
       {confirmEnd && (
         <div className="fixed inset-0 z-10 flex items-end bg-black/60 p-4" role="dialog" aria-modal="true">
