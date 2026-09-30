@@ -6,6 +6,7 @@ import { flushStoryLog, storyApi, StoryApiError, storyLog } from "@/lib/story/ap
 import { STRINGS, type Lang } from "@/lib/story/i18n";
 import { getCameraAndMic, getMicOnly, Interview, unlockAudio, type InterviewOptions } from "@/lib/story/interview";
 import { uploadFile } from "@/lib/story/upload";
+import MyithriAvatar from "@/components/MyithriAvatar";
 
 type Screen = "loading" | "invalid" | "welcome" | "consent" | "camera" | "interview" | "saving" | "upload" | "thanks" | "error";
 
@@ -251,6 +252,13 @@ export default function InterviewApp({ code }: { code: string }) {
             </div>
           )}
           <h1 className="mt-10 font-display text-5xl leading-none tracking-wide text-white">{t.hello(session?.firstName || "")}</h1>
+          <div className="mt-6 flex items-center gap-3">
+            <MyithriAvatar className="h-16 w-16 flex-none rounded-full ring-2 ring-white/20" />
+            <div>
+              <p className="font-heading text-lg font-bold leading-tight">{lang === "kn" ? "ಮೈತ್ರಿ" : "Myithri"}</p>
+              <p className="text-sm text-teal-200">{t.maitriRole}</p>
+            </div>
+          </div>
           <p className="mt-4 text-lg leading-relaxed text-navy-100">{t.intro}</p>
           {session?.done ? (
             <>
@@ -438,7 +446,7 @@ export function InterviewScreen({
   copy?: Partial<(typeof STRINGS)[Lang]>;
 }) {
   const t = { ...STRINGS[lang], ...copy };
-  // With a form panel there is more to show: smaller Maitri, pinned controls.
+  // With a form panel there is more to show: smaller Myithri, pinned controls.
   const compact = !!panel;
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const engine = useRef<Interview | null>(null);
@@ -501,7 +509,7 @@ export function InterviewScreen({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // When the engine starts ending (Maitri said goodbye, or End), wait for the video upload.
+  // When the engine starts ending (Myithri said goodbye, or End), wait for the video upload.
   useEffect(() => {
     if (!saving || !engine.current) return;
     let cancelled = false;
@@ -573,7 +581,7 @@ export function InterviewScreen({
         </div>
       </div>
 
-      {/* Maitri */}
+      {/* Myithri */}
       <div className={`relative flex flex-col items-center ${compact ? "mt-2" : "mt-6"}`}>
         <div className={`relative flex items-center justify-center ${compact ? "h-24 w-24" : "h-36 w-36"}`}>
           {speaking && !paused && (
@@ -582,11 +590,11 @@ export function InterviewScreen({
               <span className="absolute -inset-3 animate-pulse rounded-full border-2 border-teal-300/40" />
             </>
           )}
-          <div className={`relative flex items-center justify-center rounded-full bg-gradient-to-br from-teal-400 to-navy-600 shadow-2xl shadow-teal-900/50 ${compact ? "h-20 w-20" : "h-32 w-32"}`}>
-            <span className={`font-display tracking-wide text-white ${compact ? "text-4xl" : "text-6xl"}`}>{lang === "kn" ? "ಮೈ" : "M"}</span>
-          </div>
+          <MyithriAvatar
+            className={`relative rounded-full shadow-2xl shadow-teal-900/50 transition-transform duration-300 ${speaking && !paused ? "scale-[1.03]" : ""} ${compact ? "h-20 w-20" : "h-32 w-32"}`}
+          />
         </div>
-        <p className="mt-3 font-heading text-xl font-bold">{lang === "kn" ? "ಮೈತ್ರಿ" : "Maitri"}</p>
+        <p className="mt-3 font-heading text-xl font-bold">{lang === "kn" ? "ಮೈತ್ರಿ" : "Myithri"}</p>
         <p className="text-sm text-teal-200">{t.maitriRole}</p>
       </div>
 

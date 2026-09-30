@@ -137,7 +137,7 @@ function parseConversation(text: string): Line[] {
   text.split(/\r?\n/).forEach((raw) => {
     const m = raw.match(/^\s*(?:\[(\d+:\d{2})\]\s*)?([^:\[\]]{2,40}):\s+(.*)$/);
     if (m) {
-      out.push({ who: /maitri/i.test(m[2]) ? "maitri" : "player", at: m[1] || "", text: m[3].trim() });
+      out.push({ who: /maitri|myithri/i.test(m[2]) ? "maitri" : "player", at: m[1] || "", text: m[3].trim() });
     } else if (raw.trim() && out.length && !/^---|^\S.* - interview /.test(raw.trim())) {
       out[out.length - 1].text += " " + raw.trim();
     }
@@ -179,7 +179,7 @@ export function Conversation({ adminKey, playerId, file, name }: { adminKey: str
                 }`}
               >
                 <p className={`mb-0.5 text-[11px] font-bold ${l.who === "maitri" ? "text-[var(--teal)]" : "text-white/60"}`}>
-                  {l.who === "maitri" ? "Maitri" : name} {l.at && <span className="font-normal opacity-70">· {l.at}</span>}
+                  {l.who === "maitri" ? "Myithri" : name} {l.at && <span className="font-normal opacity-70">· {l.at}</span>}
                 </p>
                 {l.text}
               </div>

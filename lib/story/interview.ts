@@ -1,5 +1,5 @@
 /**
- * Runs one interview: microphone -> Maitri (Gemini Live), Maitri's voice ->
+ * Runs one interview: microphone -> Myithri (Gemini Live), Myithri's voice ->
  * speaker, camera + both voices -> a video recording streamed to Drive, and a
  * running transcript saved to Drive every 30 seconds.
  */
@@ -22,7 +22,7 @@ export interface InterviewCallbacks {
   onEnding: () => void;
   onSaveProgress: (sentBytes: number, pendingBytes: number) => void;
   onFatal: (message: string) => void;
-  /** Form interviews: an answer Maitri recorded (field key, value). */
+  /** Form interviews: an answer Myithri recorded (field key, value). */
   onField?: (field: string, value: string) => void;
   /** Seconds left before a photo is taken (3, 2, 1), then 0. */
   onCountdown?: (n: number) => void;
@@ -35,7 +35,7 @@ export interface InterviewOptions {
   recordVideo?: boolean;
   /** Tool that ends the interview (story: end_interview, form: finish_registration). */
   endTool?: string;
-  /** Maitri cannot end on her own before this many seconds (the player can). */
+  /** Myithri cannot end on her own before this many seconds (the player can). */
   minEndSeconds?: number;
   /** Story-interview time reminders ("move to dreams and donors"). Off for forms. */
   storyTimeNotes?: boolean;
@@ -147,7 +147,7 @@ export class Interview {
     storyLog(this.code, event);
   }
 
-  /** From the "tap to hear Maitri" button. */
+  /** From the "tap to hear Myithri" button. */
   tapToUnlockAudio() {
     unlockAudio(this.ctx);
     setTimeout(() => {
@@ -189,7 +189,7 @@ export class Interview {
     silent.gain.value = 0;
     mic.connect(capture).connect(silent).connect(this.ctx.destination);
 
-    // Maitri's voice goes to the speaker and into the recording; the
+    // Myithri's voice goes to the speaker and into the recording; the
     // player's mic goes only into the recording (never back to the speaker).
     const voice = this.ctx.createGain();
     voice.connect(this.ctx.destination);
@@ -341,7 +341,7 @@ export class Interview {
       return { ok: true };
     }
     if (name === "take_portrait") {
-      // Maitri asks for the smile after triggering the photo, so count down first.
+      // Myithri asks for the smile after triggering the photo, so count down first.
       for (let n = 3; n > 0; n--) {
         this.cb.onCountdown?.(n);
         await new Promise((r) => setTimeout(r, 1000));
@@ -386,7 +386,7 @@ export class Interview {
     return true;
   }
 
-  /** Maitri may not end on her own before this (the player always can). */
+  /** Myithri may not end on her own before this (the player always can). */
   private get minEnd() {
     if (this.opts.minEndSeconds !== undefined) return this.opts.minEndSeconds;
     // A follow-up chat can be short; a first interview should use most of its time.
@@ -463,7 +463,7 @@ export class Interview {
     this.live.sendNote("[RESUME]");
   }
 
-  /** The player tapped End: let Maitri say goodbye, but never wait long. */
+  /** The player tapped End: let Myithri say goodbye, but never wait long. */
   requestEnd() {
     this.endRequested = true;
     this.log(`player tapped End at ${Math.round(this.elapsed)}s`);

@@ -806,7 +806,7 @@ const EDIT_FIELDS: { key: keyof Player; label: string; kind?: "text" | "area" | 
   { key: "achievements", label: "Key achievements", kind: "area" },
   { key: "support", label: "DMSA support received", kind: "area", hint: "The only source the story uses for what DMSA gave them." },
   { key: "work", label: "Job / education" },
-  { key: "notes", label: "Notes for Maitri", kind: "area", hint: "Maitri reads this before the interview. The player never sees it." },
+  { key: "notes", label: "Notes for Myithri", kind: "area", hint: "Myithri reads this before the interview. The player never sees it." },
   { key: "qr", label: "QR video link (optional)", hint: "Blank = the interview video." },
 ];
 
@@ -965,7 +965,7 @@ function PlayerPage({
           <div className="min-w-0 flex-1">
             <p className="truncate font-heading text-xl font-bold leading-tight">{player.name}</p>
             <p className="truncate text-xs text-[var(--muted)]">
-              {player.id} · {player.hometown || "—"} · Maitri calls them &ldquo;{player.greet}&rdquo;
+              {player.id} · {player.hometown || "—"} · Myithri calls them &ldquo;{player.greet}&rdquo;
             </p>
           </div>
         </div>
@@ -1033,7 +1033,7 @@ function PlayerPage({
         )}
 
         {/* interview */}
-        <Card title="Interview" subtitle={parts.video?.seconds ? `${Math.max(1, Math.round(parts.video.seconds / 60))} minutes with Maitri` : undefined}>
+        <Card title="Interview" subtitle={parts.video?.seconds ? `${Math.max(1, Math.round(parts.video.seconds / 60))} minutes with Myithri` : undefined}>
           {!media && !mediaFailed && <Loader2 className="h-5 w-5 animate-spin text-[var(--teal)]" />}
           {mediaFailed && <p className="text-sm text-[var(--alert)]">Couldn&apos;t load the files. Pull down to refresh or try again later.</p>}
           {media && !hasInterview && <p className="text-sm text-[var(--muted)]">No interview yet.</p>}
@@ -1070,7 +1070,7 @@ function PlayerPage({
           <button onClick={() => setShowDetails((v) => !v)} className="flex w-full items-center justify-between p-4 text-left" aria-expanded={showDetails}>
             <span>
               <span className="block font-heading text-[15px] font-bold">Player details</span>
-              <span className="block text-xs text-[var(--muted)]">Maitri and the story use these. {!player.support && "DMSA support is still empty."}</span>
+              <span className="block text-xs text-[var(--muted)]">Myithri and the story use these. {!player.support && "DMSA support is still empty."}</span>
             </span>
             <ChevronDown className={`h-5 w-5 transition ${showDetails ? "rotate-180" : ""}`} />
           </button>

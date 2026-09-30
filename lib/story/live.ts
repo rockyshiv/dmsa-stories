@@ -1,7 +1,7 @@
 /**
- * A live voice conversation with Gemini (Maitri) over WebSocket.
+ * A live voice conversation with Gemini (Myithri) over WebSocket.
  *
- * Microphone audio goes up as 16 kHz PCM; Maitri's voice comes back as 24 kHz
+ * Microphone audio goes up as 16 kHz PCM; Myithri's voice comes back as 24 kHz
  * PCM and is played through `output` (which the page also mixes into the
  * video recording). Connections drop every ~10 minutes by design and on bad
  * networks, so the session transparently reconnects using Gemini's session
@@ -45,7 +45,7 @@ export class LiveSession {
   private sources = new Set<AudioBufferSourceNode>();
   private decoder = new TextDecoder();
   private micMuted = false;
-  // Echo guard: if Maitri keeps getting "interrupted" without the player
+  // Echo guard: if Myithri keeps getting "interrupted" without the player
   // saying anything, her own voice is leaking into the mic. Then we stop
   // sending mic audio while she speaks (half-duplex).
   private halfDuplex = false;
@@ -55,7 +55,7 @@ export class LiveSession {
   constructor(
     private ctx: AudioContext,
     private output: AudioNode,
-    /** needHistory: a fresh session is needed after a drop, so Maitri must be told what was already said */
+    /** needHistory: a fresh session is needed after a drop, so Myithri must be told what was already said */
     private getToken: (needHistory: boolean, resuming: boolean) => Promise<LiveToken>,
     private h: LiveHandlers,
   ) {}
@@ -228,7 +228,7 @@ export class LiveSession {
     this.playHead = this.ctx.currentTime;
   }
 
-  /** Resolves once Maitri has finished saying what is queued. */
+  /** Resolves once Myithri has finished saying what is queued. */
   async drain(maxMs = 15000) {
     const until = Date.now() + maxMs;
     while (this.maitriSpeaking && Date.now() < until) await new Promise((r) => setTimeout(r, 200));
