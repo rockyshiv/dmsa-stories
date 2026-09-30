@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import QRCode from "qrcode";
 import {
   ArrowLeft,
@@ -114,6 +114,16 @@ interface Insights {
 type View = { kind: "list" } | { kind: "new" } | { kind: "edit"; conv: Conv } | { kind: "conv"; id: string } | { kind: "resp"; convId: string; respId: string };
 
 const TYPE_ICON: Record<string, typeof Users> = { volunteer: Users, viewer: Eye, interview: Briefcase, custom: MessagesSquare };
+
+/** Text that looks like a written form rather than spoken questions. */
+function looksLikeForm(text: string) {
+  const lines = text.split("\n").map((l) => l.trim()).filter(Boolean);
+  return (
+    lines.length > 14 ||
+    lines.some((l) => /^(section|part)\b/i.test(l) || /^rate each\b|^name\b|\(\d+\s*min\)|:$/i.test(l)) ||
+    (lines[0] || "").length > 160
+  );
+}
 
 function when(iso: string) {
   const d = new Date(iso);
@@ -240,6 +250,9 @@ function Builder({ adminKey, existing, onBack, onSaved }: { adminKey: string; ex
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState("");
   const [more, setMore] = useState(false);
+  const [tidyNote, setTidyNote] = useState("");
+  const [tidied, setTidied] = useState(false);
+  const requestId = useRef(typeof crypto !== "undefined" && crypto.randomUUID ? crypto.randomUUID() : `${Date.now()}-${Math.random()}`);
 
   useEffect(() => {
     if (existing) return;
@@ -261,13 +274,36 @@ function Builder({ adminKey, existing, onBack, onSaved }: { adminKey: string; ex
 
   const set = (k: string, v: unknown) => setF((x) => ({ ...(x || {}), [k]: v }));
 
-  const save = async () => {
+  const tidy = async () => {
     if (!f) return;
     setBusy(true);
     setErr("");
     try {
+      const r = await storyAdmin<{ questions: string[]; changes: string }>(
+        "convTidy",
+        adminKey,
+        { questions: f.questionsText || "", minutes: f.minutes || 10, audience: f.audience || "", objective: f.objective || "" },
+        120000,
+      );
+      setF((x) => ({ ...(x || {}), questionsText: r.questions.join("\n") }));
+      setTidyNote(`${r.changes} Check the ${r.questions.length} questions below, then save.`);
+      setTidied(true);
+    } catch (e) {
+      setErr(String((e as Error)?.message || e));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const save = async () => {
+    if (!f) return;
+    // A pasted written form is first turned into spoken questions, for Shiva to check.
+    if (!tidied && looksLikeForm(f.questionsText || "")) return tidy();
+    setBusy(true);
+    setErr("");
+    try {
       const fields = { ...f, questions: f.questionsText || "", criteria: f.criteriaText || "" };
-      const r = await storyAdmin<{ conversation: Conv }>("convSave", adminKey, { id: existing?.id, fields }, 90000);
+      const r = await storyAdmin<{ conversation: Conv }>("convSave", adminKey, { id: existing?.id, fields, requestId: requestId.current }, 90000);
       onSaved(r.conversation);
     } catch (e) {
       setErr(String((e as Error)?.message || e));
@@ -342,8 +378,20 @@ function Builder({ adminKey, existing, onBack, onSaved }: { adminKey: string; ex
               </label>
             </Section>
 
-            <Section title="Questions" subtitle="One per line, in order. Myithri asks each in her own words and adds follow-ups when an answer matters for the objective.">
-              <textarea className={input} rows={Math.max(6, (f.questionsText || "").split("\n").length + 1)} value={f.questionsText || ""} onChange={(e) => set("questionsText", e.target.value)} />
+            <Section
+              title="Questions"
+              subtitle="One per line, in order. Myithri asks each in her own words and adds follow-ups when an answer matters for the objective. You can also paste a written form - it is turned into spoken questions for you to check."
+            >
+              {tidyNote && <p className="mb-3 rounded-lg bg-[var(--teal-soft)] p-3 text-sm">{tidyNote}</p>}
+              <textarea
+                className={input}
+                rows={Math.min(24, Math.max(6, (f.questionsText || "").split("\n").length + 1))}
+                value={f.questionsText || ""}
+                onChange={(e) => set("questionsText", e.target.value)}
+              />
+              <button onClick={tidy} disabled={busy || !(f.questionsText || "").trim()} className="mt-2 flex items-center gap-1.5 text-sm font-semibold text-[var(--teal)] disabled:opacity-50">
+                <Sparkles className="h-4 w-4" /> Tidy up for a spoken conversation
+              </button>
             </Section>
 
             {f.type === "interview" && (
@@ -432,7 +480,7 @@ function Builder({ adminKey, existing, onBack, onSaved }: { adminKey: string; ex
               disabled={busy}
               className="flex w-full items-center justify-center gap-2 rounded-xl bg-[var(--navy)] py-3.5 font-semibold text-white transition hover:bg-[var(--navy2)] disabled:opacity-60"
             >
-              {busy ? <Loader2 className="h-5 w-5 animate-spin" /> : <Check className="h-5 w-5" />} {existing ? "Save changes" : "Create and get the link"}
+              {busy ? <Loader2 className="h-5 w-5 animate-spin" /> : <Check className="h-5 w-5" />} {busy ? "Working..." : existing ? "Save changes" : "Create and get the link"}
             </button>
           </>
         )}
