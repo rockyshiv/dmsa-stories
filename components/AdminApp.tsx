@@ -8,7 +8,6 @@ import {
   Check,
   ChevronDown,
   ChevronRight,
-  ClipboardList,
   Copy,
   FolderOpen,
   Home,
@@ -21,7 +20,6 @@ import {
   Users,
 } from "lucide-react";
 import { storyAdmin, StoryApiError } from "@/lib/story/api";
-import { Registrations } from "@/components/AdminRegistrations";
 import { Conversation, interviewParts, PhotoGrid, StoriesView, StoryCover, StoryReader, useMedia, VideoBox } from "@/components/AdminMedia";
 
 const BASE = process.env.NEXT_PUBLIC_BASE_PATH || "";
@@ -157,13 +155,12 @@ export default function AdminApp() {
 
 // ---------- dashboard ----------
 
-type Section = "home" | "stories" | "players" | "signups";
+type Section = "home" | "stories" | "players";
 
 const NAV: { id: Section; label: string; icon: typeof Home }[] = [
   { id: "home", label: "Home", icon: Home },
   { id: "stories", label: "Stories", icon: BookOpen },
   { id: "players", label: "Players", icon: Users },
-  { id: "signups", label: "Sign-ups", icon: ClipboardList },
 ];
 
 function Dashboard({ adminKey }: { adminKey: string }) {
@@ -176,7 +173,6 @@ function Dashboard({ adminKey }: { adminKey: string }) {
   const [reading, setReading] = useState<Player | null>(null);
   const [adding, setAdding] = useState(false);
   const [toast, setToast] = useState("");
-  const [signups, setSignups] = useState<number | null>(null);
   const [section, setSection] = useState<Section>(() => {
     try {
       const s = localStorage.getItem("dmsaAdminSection") as Section;
@@ -211,10 +207,7 @@ function Dashboard({ adminKey }: { adminKey: string }) {
 
   useEffect(() => {
     load();
-    storyAdmin<{ registrations: { status: string; full_name: string }[] }>("registrations", adminKey, { campaign: "KWPL4" }, 90000)
-      .then((r) => setSignups(r.registrations.filter((x) => /^Submitted/.test(x.status) && !/\(ignore\)/i.test(String(x.full_name))).length))
-      .catch(() => setSignups(null));
-  }, [load, adminKey]);
+  }, [load]);
 
   const showToast = (t: string) => {
     setToast(t);
@@ -266,7 +259,6 @@ function Dashboard({ adminKey }: { adminKey: string }) {
                   }`}
                 >
                   <n.icon className="h-5 w-5" /> {n.label}
-                  {n.id === "signups" && !!signups && <Badge n={signups} />}
                 </button>
               </li>
             ))}
@@ -274,13 +266,13 @@ function Dashboard({ adminKey }: { adminKey: string }) {
         </nav>
 
         <div data-admin-main className="min-w-0 pb-20 lg:h-dvh lg:overflow-y-auto lg:pb-0">
-          {!players && !error && section !== "signups" && (
+          {!players && !error && (
             <Center>
               <Loader2 className="h-7 w-7 animate-spin text-[var(--teal)]" />
               <p className="mt-3 text-sm text-[var(--muted)]">Loading…</p>
             </Center>
           )}
-          {error && section !== "signups" && (
+          {error && (
             <Center>
               <p className="max-w-sm text-center">{error}</p>
               <button className="mt-5 rounded-xl bg-[var(--teal)] px-5 py-3 font-semibold text-white" onClick={() => load()}>
@@ -290,7 +282,7 @@ function Dashboard({ adminKey }: { adminKey: string }) {
           )}
 
           {players && section === "home" && (
-            <HomeView players={players} counts={counts} signups={signups} adminKey={adminKey} go={go} onRead={setReading} refreshing={refreshing} onRefresh={refresh} />
+            <HomeView players={players} counts={counts} adminKey={adminKey} go={go} onRead={setReading} refreshing={refreshing} onRefresh={refresh} />
           )}
 
           {players && section === "stories" && (
@@ -304,8 +296,6 @@ function Dashboard({ adminKey }: { adminKey: string }) {
               }}
             />
           )}
-
-          {section === "signups" && <Registrations adminKey={adminKey} />}
 
           {players && section === "players" && (
             <div className="lg:grid lg:h-dvh lg:grid-cols-[minmax(340px,420px)_1fr]">
@@ -392,7 +382,7 @@ function Dashboard({ adminKey }: { adminKey: string }) {
 
       {/* bottom bar on phones */}
       <nav className="fixed inset-x-0 bottom-0 z-20 border-t border-[var(--line)] bg-[var(--surface)]/95 pb-[env(safe-area-inset-bottom)] backdrop-blur lg:hidden" aria-label="Main">
-        <ul className="grid grid-cols-4">
+        <ul className="grid grid-cols-3">
           {NAV.map((n) => (
             <li key={n.id}>
               <button
@@ -404,11 +394,6 @@ function Dashboard({ adminKey }: { adminKey: string }) {
                   <n.icon className="h-5 w-5" />
                 </span>
                 {n.label}
-                {n.id === "signups" && !!signups && (
-                  <span className="absolute right-[22%] top-1.5">
-                    <Badge n={signups} />
-                  </span>
-                )}
               </button>
             </li>
           ))}
@@ -438,10 +423,6 @@ function Dashboard({ adminKey }: { adminKey: string }) {
   );
 }
 
-function Badge({ n }: { n: number }) {
-  return <span className="ml-auto rounded-full bg-[var(--alert)] px-1.5 py-0.5 text-[10px] font-bold leading-none text-white">{n}</span>;
-}
-
 function RefreshButton({ spinning, onClick, dark }: { spinning: boolean; onClick: () => void; dark?: boolean }) {
   return (
     <button
@@ -461,7 +442,6 @@ function RefreshButton({ spinning, onClick, dark }: { spinning: boolean; onClick
 function HomeView({
   players,
   counts,
-  signups,
   adminKey,
   go,
   onRead,
@@ -470,7 +450,6 @@ function HomeView({
 }: {
   players: Player[];
   counts: Record<Filter, number>;
-  signups: number | null;
   adminKey: string;
   go: (s: Section, f?: Filter) => void;
   onRead: (p: Player) => void;
@@ -511,14 +490,6 @@ function HomeView({
       title: `${counts.stuck} ${counts.stuck === 1 ? "player needs" : "players need"} a reminder`,
       text: "They opened the link but haven't finished for a day or more.",
       onClick: () => go("players", "stuck"),
-    });
-  if (signups)
-    todo.push({
-      tone: "navy",
-      icon: <ClipboardList className="h-5 w-5" />,
-      title: `${signups} KWPL ${signups === 1 ? "sign-up" : "sign-ups"} to check`,
-      text: "Confirm the player or mark them to call.",
-      onClick: () => go("signups"),
     });
   if (counts.notSent)
     todo.push({
