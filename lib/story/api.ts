@@ -96,7 +96,7 @@ export function flushStoryLog(beacon = false) {
 /** Calls the admin API with the private key from Shiva's app link. */
 // Admin calls that only read (or are safe to repeat) are retried when
 // Google's reply goes missing; changes are sent once.
-const SAFE_TO_REPEAT = new Set(["list", "files", "media", "text", "blob", "storyPages", "registrations", "autoStories", "diagnostics", "fileData", "storyStart", "storyJob", "health", "update", "approve", "markSent"]);
+const SAFE_TO_REPEAT = new Set(["list", "files", "media", "text", "blob", "storyPages", "registrations", "autoStories", "diagnostics", "fileData", "storyStart", "storyJob", "health", "convList", "convGet", "convTemplates", "convResponse", "convText", "convAnalyse", "convStatus", "update", "approve", "markSent"]);
 
 export function storyAdmin<T = Record<string, unknown>>(op: string, key: string, body: Record<string, unknown> = {}, timeoutMs = 60000) {
   return storyApi<T>("admin", { op, key, ...body }, SAFE_TO_REPEAT.has(op) ? 3 : 1, timeoutMs);

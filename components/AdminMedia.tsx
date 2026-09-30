@@ -126,13 +126,13 @@ export function VideoBox({ file }: { file: MediaFile }) {
 
 // ---------- conversation ----------
 
-interface Line {
+export interface Line {
   who: "maitri" | "player";
   at: string;
   text: string;
 }
 
-function parseConversation(text: string): Line[] {
+export function parseConversation(text: string): Line[] {
   const out: Line[] = [];
   text.split(/\r?\n/).forEach((raw) => {
     const m = raw.match(/^\s*(?:\[(\d+:\d{2})\]\s*)?([^:\[\]]{2,40}):\s+(.*)$/);
