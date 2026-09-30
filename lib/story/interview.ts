@@ -494,7 +494,7 @@ export class Interview {
       );
       this.cleanup();
       await this.saveTranscript();
-      storyApi("finish", { code: this.code, completed: this.completed, minutes: this.elapsed / 60 }).catch(() => {});
+      storyApi("finish", { code: this.code, completed: this.completed, minutes: this.elapsed / 60, sessionId: this.sessionId }).catch(() => {});
       await this.sendAudio();
       return this.sendVideo(false);
     })();

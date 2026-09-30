@@ -10,6 +10,7 @@ import {
   ChevronRight,
   Copy,
   FolderOpen,
+  HeartPulse,
   Home,
   Loader2,
   MessageCircle,
@@ -437,6 +438,74 @@ function RefreshButton({ spinning, onClick, dark }: { spinning: boolean; onClick
   );
 }
 
+// ---------- system check ----------
+
+interface Health {
+  status: "ok" | "warn" | "bad";
+  checks: { level: "ok" | "warn" | "bad"; text: string }[];
+  log: string[];
+}
+
+/** One line saying whether the automatic parts are working; tap for details. */
+function SystemCheck({ adminKey }: { adminKey: string }) {
+  const [h, setH] = useState<Health | null>(null);
+  const [open, setOpen] = useState(false);
+  useEffect(() => {
+    storyAdmin<Health>("health", adminKey, {}, 90000)
+      .then(setH)
+      .catch(() => setH(null));
+  }, [adminKey]);
+  if (!h) return null;
+  const tone = {
+    ok: { dot: "bg-[var(--teal)]", text: "Everything is working" },
+    warn: { dot: "bg-[var(--gold)]", text: "Working, with a note" },
+    bad: { dot: "bg-[var(--alert)]", text: "Something needs you" },
+  }[h.status];
+  return (
+    <section className="rounded-2xl border border-[var(--line)] bg-[var(--surface)]">
+      <button onClick={() => setOpen((v) => !v)} className="flex w-full items-center gap-3 px-4 py-3.5 text-left" aria-expanded={open}>
+        <HeartPulse className="h-5 w-5 flex-none text-[var(--muted)]" aria-hidden />
+        <span className="flex-1">
+          <span className="block text-[13px] font-bold uppercase tracking-[0.12em] text-[var(--muted)]">System check</span>
+          <span className="flex items-center gap-2 font-semibold">
+            <span className={`h-2.5 w-2.5 rounded-full ${tone.dot}`} aria-hidden />
+            {tone.text}
+          </span>
+        </span>
+        <ChevronDown className={`h-5 w-5 text-[var(--muted)] transition ${open ? "rotate-180" : ""}`} />
+      </button>
+      {open && (
+        <div className="border-t border-[var(--line)] px-4 pb-4 pt-3">
+          <ul className="space-y-2.5">
+            {h.checks.map((c, i) => (
+              <li key={i} className="flex gap-2.5 text-sm">
+                <span
+                  className={`mt-1.5 h-2 w-2 flex-none rounded-full ${c.level === "ok" ? "bg-[var(--teal)]" : c.level === "warn" ? "bg-[var(--gold)]" : "bg-[var(--alert)]"}`}
+                  aria-label={c.level === "ok" ? "fine" : c.level === "warn" ? "note" : "problem"}
+                />
+                <span>{c.text}</span>
+              </li>
+            ))}
+          </ul>
+          {h.log.length > 0 && (
+            <>
+              <p className="mt-4 text-[11px] font-bold uppercase tracking-[0.12em] text-[var(--muted)]">Recent automatic work</p>
+              <ul className="mt-1.5 space-y-1 font-mono text-[11px] leading-relaxed text-[var(--muted)]">
+                {h.log
+                  .slice()
+                  .reverse()
+                  .map((l, i) => (
+                    <li key={i}>{l}</li>
+                  ))}
+              </ul>
+            </>
+          )}
+        </div>
+      )}
+    </section>
+  );
+}
+
 // ---------- home ----------
 
 function HomeView({
@@ -551,6 +620,8 @@ function HomeView({
             ))}
           </dl>
         </section>
+
+        <SystemCheck adminKey={adminKey} />
 
         {/* what needs Shiva */}
         <section>
