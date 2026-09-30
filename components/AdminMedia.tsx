@@ -497,7 +497,7 @@ export function StoriesView({
       {waiting.length > 0 && (
         <section className="mt-10">
           <h2 className="font-heading text-lg font-bold">Interviews waiting for a story</h2>
-          <p className="mt-1 text-sm text-[var(--muted)]">Stories are written automatically every day at 12:45 pm, or open the player to write one now.</p>
+          <p className="mt-1 text-sm text-[var(--muted)]">Stories are usually written automatically right after an interview of 8+ minutes. Open a player to write one now - it takes about a minute.</p>
           <ul className="mt-3 space-y-2">
             {waiting.map((p) => (
               <li key={p.id}>

@@ -501,7 +501,7 @@ function HomeView({
       tone: "teal",
       icon: <Sparkles className="h-5 w-5" />,
       title: `${needStory.length} ${needStory.length === 1 ? "interview is" : "interviews are"} waiting for a story`,
-      text: "They are written automatically at 12:45 pm, or you can write one now.",
+      text: "Usually written automatically right after the interview. Tap to write one now (about a minute).",
       onClick: () => go("stories"),
     });
   if (counts.stuck)
@@ -812,11 +812,11 @@ function PlayerPage({
     if (
       lang === "en" &&
       !confirm(
-        `Create ${player.name}'s story? It takes 1–3 minutes.\n\nThe story's QR code links to their interview video, so that one video becomes viewable by anyone with the link (it is not listed or searchable).`,
+        `Create ${player.name}'s story? It takes about a minute.\n\nThe story's QR code links to their interview video, so that one video becomes viewable by anyone with the link (it is not listed or searchable).`,
       )
     )
       return;
-    setWork(lang === "en" ? "Writing the story… 1–3 minutes" : "Translating into Kannada… about a minute");
+    setWork(lang === "en" ? "Writing the story… about a minute" : "Translating into Kannada… about a minute");
     try {
       const r = await storyAdmin<{ player: Player; needsCheck: string[] }>("story", adminKey, { id: player.id, lang }, 6.5 * 60 * 1000);
       onChange(r.player);
