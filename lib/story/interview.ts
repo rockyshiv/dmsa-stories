@@ -147,6 +147,21 @@ export class Interview {
     storyLog(this.code, event);
   }
 
+  private analyser: AnalyserNode | null = null;
+  private levelBuf: Float32Array | null = null;
+
+  /** How loud Myithri's voice is right now, 0-1 (for lip sync). */
+  voiceLevel(): number {
+    const a = this.analyser;
+    if (!a || this.ctx.state !== "running") return 0;
+    if (!this.levelBuf) this.levelBuf = new Float32Array(a.fftSize);
+    a.getFloatTimeDomainData(this.levelBuf as Float32Array<ArrayBuffer>);
+    let sum = 0;
+    for (let i = 0; i < this.levelBuf.length; i++) sum += this.levelBuf[i] * this.levelBuf[i];
+    const rms = Math.sqrt(sum / this.levelBuf.length);
+    return Math.max(0, Math.min(1, (rms - 0.012) * 6));
+  }
+
   /** From the "tap to hear Myithri" button. */
   tapToUnlockAudio() {
     unlockAudio(this.ctx);
@@ -193,6 +208,10 @@ export class Interview {
     // player's mic goes only into the recording (never back to the speaker).
     const voice = this.ctx.createGain();
     voice.connect(this.ctx.destination);
+    // Her voice's loudness drives the avatar's lips.
+    this.analyser = this.ctx.createAnalyser();
+    this.analyser.fftSize = 1024;
+    voice.connect(this.analyser);
     const recMix = this.ctx.createMediaStreamDestination();
     mic.connect(recMix);
     voice.connect(recMix);
@@ -261,8 +280,10 @@ export class Interview {
         midCall: needHistory,
         sessionId: this.sessionId,
       },
-      3,
-      60000,
+      // Google sometimes loses replies for a while: the first connection keeps
+      // trying (the player sees "Connecting...") rather than showing an error.
+      this.readyOnce ? 3 : 6,
+      45000,
     );
     this.log("token ok");
     return t;
