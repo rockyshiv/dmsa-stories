@@ -34,7 +34,13 @@ export async function storyApi<T = Record<string, unknown>>(
         body: JSON.stringify({ action, ...body }),
         signal: ctrl.signal,
       }).finally(() => clearTimeout(timer));
-      const data = await res.json();
+      let data;
+      try {
+        data = await res.json();
+      } catch {
+        // Google sometimes sends an error page instead of our answer.
+        throw new Error("Google didn't answer properly. Please try again in a moment.");
+      }
       // Google occasionally answers a POST with the web app's GET reply
       // ({ service: ... }); that is not our answer, so try again.
       if (data && data.service && !("error" in data) && action !== "ping") throw new Error("wrong reply from Google, retrying");
@@ -88,6 +94,10 @@ export function flushStoryLog(beacon = false) {
 }
 
 /** Calls the admin API with the private key from Shiva's app link. */
+// Admin calls that only read (or are safe to repeat) are retried when
+// Google's reply goes missing; changes are sent once.
+const SAFE_TO_REPEAT = new Set(["list", "files", "media", "text", "blob", "storyPages", "registrations", "autoStories", "diagnostics", "fileData", "storyStart", "storyJob", "update", "approve", "markSent"]);
+
 export function storyAdmin<T = Record<string, unknown>>(op: string, key: string, body: Record<string, unknown> = {}, timeoutMs = 60000) {
-  return storyApi<T>("admin", { op, key, ...body }, 1, timeoutMs);
+  return storyApi<T>("admin", { op, key, ...body }, SAFE_TO_REPEAT.has(op) ? 3 : 1, timeoutMs);
 }

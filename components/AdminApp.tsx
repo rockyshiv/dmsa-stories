@@ -816,12 +816,34 @@ function PlayerPage({
       )
     )
       return;
-    setWork(lang === "en" ? "Writing the story… about a minute" : "Translating into Kannada… about a minute");
+    setWork(lang === "en" ? "Writing the story… about a minute. You can leave this page - it keeps going." : "Translating into Kannada… about a minute.");
     try {
-      const r = await storyAdmin<{ player: Player; needsCheck: string[] }>("story", adminKey, { id: player.id, lang }, 6.5 * 60 * 1000);
-      onChange(r.player);
-      toast(lang === "en" ? "Story created" : "Kannada version created");
-      if (r.needsCheck?.length) alert("Check these before sharing:\n\n- " + r.needsCheck.join("\n- "));
+      // Google writes it in the background; check back every few seconds.
+      await storyAdmin("storyStart", adminKey, { id: player.id, lang });
+      type Job = { state: string; needsCheck?: string[]; error?: string; note?: string };
+      const until = Date.now() + 12 * 60 * 1000;
+      while (Date.now() < until) {
+        await new Promise((r) => setTimeout(r, 8000));
+        let r: { job: Job | null; player: Player | null };
+        try {
+          r = await storyAdmin<{ job: Job | null; player: Player | null }>("storyJob", adminKey, { id: player.id });
+        } catch {
+          continue;
+        }
+        if (r.job?.note) setWork(`${lang === "en" ? "Writing the story" : "Translating"}… ${r.job.note.toLowerCase()}.`);
+        if (r.job?.state === "done") {
+          if (r.player) onChange(r.player);
+          toast(lang === "en" ? "Story created" : "Kannada version created");
+          if (r.job.needsCheck?.length) alert("Check these before sharing:\n\n- " + r.job.needsCheck.join("\n- "));
+          return;
+        }
+        if (r.job?.state === "failed") {
+          if (r.player) onChange(r.player);
+          alert("The story could not be written: " + (r.job.error || "unknown problem") + "\n\nThe hourly automatic run will try again.");
+          return;
+        }
+      }
+      alert("This is taking longer than usual. Google keeps working on it - check the Stories tab in a few minutes.");
     } catch (e) {
       alert(String((e as Error)?.message || e));
     } finally {
