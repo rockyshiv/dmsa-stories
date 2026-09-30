@@ -3,22 +3,26 @@
 import { useCallback, useEffect, useMemo, useState, useSyncExternalStore } from "react";
 import {
   ArrowLeft,
+  BellRing,
+  BookOpen,
   Check,
+  ChevronDown,
+  ChevronRight,
+  ClipboardList,
   Copy,
-  ExternalLink,
-  FileText,
   FolderOpen,
-  Image as ImageIcon,
+  Home,
   Loader2,
   MessageCircle,
   Plus,
   RefreshCw,
   Search,
   Sparkles,
-  Video,
+  Users,
 } from "lucide-react";
 import { storyAdmin, StoryApiError } from "@/lib/story/api";
-import { Registrations, SectionTabs, type Section } from "@/components/AdminRegistrations";
+import { Registrations } from "@/components/AdminRegistrations";
+import { Conversation, interviewParts, PhotoGrid, StoriesView, StoryCover, StoryReader, useMedia, VideoBox } from "@/components/AdminMedia";
 
 const BASE = process.env.NEXT_PUBLIC_BASE_PATH || "";
 const KEY_STORE = "dmsaAdminKey";
@@ -55,17 +59,12 @@ export interface Player {
   pdfKnUrl: string;
 }
 
-interface DriveFile {
-  name: string;
-  url: string;
-  mime: string;
-  size: number;
-  created: string;
-}
-
 // ---------- the six stages of a player's journey, shown as the six balls of an over ----------
 
-const STAGES = ["Sent", "Opened", "Agreed", "Interviewed", "Story", "Approved"] as const;
+const STAGES = ["Invited", "Opened", "Agreed", "Interviewed", "Story", "Approved"] as const;
+
+/** Where a player is, in words. */
+const STATUS_WORDS = ["Not invited yet", "Invited", "Opened the link", "Started the interview", "Interview done", "Story ready", "Story approved"];
 
 /** How many of the six stages this player has completed (0-6). */
 function stageOf(p: Pick<Player, "status" | "approved">): number {
@@ -90,12 +89,12 @@ function isStuck(p: Player): boolean {
 type Filter = "all" | "notSent" | "waiting" | "started" | "finished" | "stuck";
 
 const FILTERS: { id: Filter; label: string; test: (p: Player) => boolean }[] = [
-  { id: "all", label: "All", test: () => true },
-  { id: "notSent", label: "Not sent", test: (p) => stageOf(p) === 0 },
-  { id: "waiting", label: "Waiting", test: (p) => stageOf(p) === 1 || stageOf(p) === 2 },
-  { id: "started", label: "In progress", test: (p) => stageOf(p) === 3 },
-  { id: "finished", label: "Interviewed", test: (p) => stageOf(p) >= 4 },
-  { id: "stuck", label: "Needs a nudge", test: isStuck },
+  { id: "all", label: "Everyone", test: () => true },
+  { id: "stuck", label: "Needs a reminder", test: isStuck },
+  { id: "notSent", label: "Not invited", test: (p) => stageOf(p) === 0 },
+  { id: "waiting", label: "Invited", test: (p) => stageOf(p) === 1 || stageOf(p) === 2 },
+  { id: "started", label: "Started", test: (p) => stageOf(p) === 3 },
+  { id: "finished", label: "Interview done", test: (p) => stageOf(p) >= 4 },
 ];
 
 function ago(iso: string): string {
@@ -158,6 +157,15 @@ export default function AdminApp() {
 
 // ---------- dashboard ----------
 
+type Section = "home" | "stories" | "players" | "signups";
+
+const NAV: { id: Section; label: string; icon: typeof Home }[] = [
+  { id: "home", label: "Home", icon: Home },
+  { id: "stories", label: "Stories", icon: BookOpen },
+  { id: "players", label: "Players", icon: Users },
+  { id: "signups", label: "Sign-ups", icon: ClipboardList },
+];
+
 function Dashboard({ adminKey }: { adminKey: string }) {
   const [players, setPlayers] = useState<Player[] | null>(null);
   const [error, setError] = useState("");
@@ -165,17 +173,25 @@ function Dashboard({ adminKey }: { adminKey: string }) {
   const [filter, setFilter] = useState<Filter>("all");
   const [query, setQuery] = useState("");
   const [openId, setOpenId] = useState<string | null>(null);
+  const [reading, setReading] = useState<Player | null>(null);
   const [adding, setAdding] = useState(false);
   const [toast, setToast] = useState("");
+  const [signups, setSignups] = useState<number | null>(null);
   const [section, setSection] = useState<Section>(() => {
     try {
-      return (localStorage.getItem("dmsaAdminSection") as Section) || "stories";
+      const s = localStorage.getItem("dmsaAdminSection") as Section;
+      return NAV.some((n) => n.id === s) ? s : "home";
     } catch {
-      return "stories";
+      return "home";
     }
   });
-  const changeSection = (s: Section) => {
+  const go = (s: Section, f?: Filter) => {
     setSection(s);
+    if (f) setFilter(f);
+    setOpenId(null);
+    setAdding(false);
+    document.querySelector("[data-admin-main]")?.scrollTo(0, 0);
+    window.scrollTo(0, 0);
     try {
       localStorage.setItem("dmsaAdminSection", s);
     } catch {
@@ -195,7 +211,10 @@ function Dashboard({ adminKey }: { adminKey: string }) {
 
   useEffect(() => {
     load();
-  }, [load]);
+    storyAdmin<{ registrations: { status: string; full_name: string }[] }>("registrations", adminKey, { campaign: "KWPL4" }, 90000)
+      .then((r) => setSignups(r.registrations.filter((x) => /^Submitted/.test(x.status) && !/\(ignore\)/i.test(String(x.full_name))).length))
+      .catch(() => setSignups(null));
+  }, [load, adminKey]);
 
   const showToast = (t: string) => {
     setToast(t);
@@ -219,70 +238,49 @@ function Dashboard({ adminKey }: { adminKey: string }) {
   }, [players, filter, query]);
 
   const open = players?.find((p) => p.id === openId) || null;
-  const finished = (players || []).filter((p) => stageOf(p) >= 4).length;
-  const stories = (players || []).filter((p) => stageOf(p) >= 5).length;
-
-  if (section === "registrations")
-    return (
-      <Shell>
-        <Registrations adminKey={adminKey} section={section} onSection={changeSection} />
-      </Shell>
-    );
+  const refresh = () => {
+    setRefreshing(true);
+    load();
+  };
 
   return (
     <Shell>
-      <div className="lg:grid lg:h-dvh lg:grid-cols-[minmax(380px,460px)_1fr]">
-        {/* ---- left: scoreboard + list ---- */}
-        <div className="lg:flex lg:h-dvh lg:flex-col lg:overflow-hidden lg:border-r lg:border-[var(--line)]">
-          <header className="bg-[var(--navy)] px-4 pb-4 pt-3 text-white">
-            <div className="flex items-center justify-between gap-3">
-              <div className="flex items-center gap-3">
-                <Logo small />
-                <div>
-                  <p className="font-heading text-[15px] font-bold leading-tight">Player Stories</p>
-                  <p className="text-xs text-white/60">Interviews with Maitri</p>
-                </div>
-              </div>
-              <button
-                aria-label="Refresh"
-                onClick={() => {
-                  setRefreshing(true);
-                  load();
-                }}
-                className="rounded-full bg-white/10 p-2.5 transition hover:bg-white/20 focus-visible:outline focus-visible:outline-2 focus-visible:outline-[var(--teal)]"
-              >
-                <RefreshCw className={`h-4 w-4 ${refreshing ? "animate-spin" : ""}`} />
-              </button>
+      <div className="lg:grid lg:h-dvh lg:grid-cols-[232px_1fr]">
+        {/* ---- navigation: side rail on computers, bottom bar on phones ---- */}
+        <nav className="hidden bg-[var(--navy)] px-3 py-5 text-white lg:flex lg:flex-col" aria-label="Main">
+          <div className="flex items-center gap-3 px-2">
+            <Logo small />
+            <div>
+              <p className="font-heading text-[15px] font-bold leading-tight">DMSA</p>
+              <p className="text-xs text-white/60">Players &amp; stories</p>
             </div>
-            <SectionTabs section={section} onChange={changeSection} />
+          </div>
+          <ul className="mt-8 space-y-1">
+            {NAV.map((n) => (
+              <li key={n.id}>
+                <button
+                  onClick={() => go(n.id)}
+                  aria-current={section === n.id ? "page" : undefined}
+                  className={`flex w-full items-center gap-3 rounded-xl px-3 py-3 text-[15px] font-semibold transition ${
+                    section === n.id ? "bg-white text-[var(--navy)]" : "text-white/75 hover:bg-white/10 hover:text-white"
+                  }`}
+                >
+                  <n.icon className="h-5 w-5" /> {n.label}
+                  {n.id === "signups" && !!signups && <Badge n={signups} />}
+                </button>
+              </li>
+            ))}
+          </ul>
+        </nav>
 
-            {/* scoreboard */}
-            <div className="mt-4 grid grid-cols-4 overflow-hidden rounded-xl border border-white/10 bg-black/20">
-              <ScoreCell value={players ? finished : "–"} label="Interviewed" tone="gold" />
-              <ScoreCell value={players ? stories : "–"} label="Stories" tone="teal" />
-              <ScoreCell value={players ? counts.started + counts.waiting : "–"} label="Pending" />
-              <ScoreCell value={players ? counts.notSent : "–"} label="Not sent" />
-            </div>
-            <div className="mt-3 flex items-center gap-3">
-              <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-white/10" aria-hidden>
-                <div
-                  className="h-full rounded-full bg-[var(--gold)] transition-[width] duration-700"
-                  style={{ width: `${players?.length ? (finished / players.length) * 100 : 0}%` }}
-                />
-              </div>
-              <span className="text-xs tabular-nums text-white/70">
-                {finished}/{players?.length ?? 0}
-              </span>
-            </div>
-          </header>
-
-          {!players && !error && (
+        <div data-admin-main className="min-w-0 pb-20 lg:h-dvh lg:overflow-y-auto lg:pb-0">
+          {!players && !error && section !== "signups" && (
             <Center>
               <Loader2 className="h-7 w-7 animate-spin text-[var(--teal)]" />
-              <p className="mt-3 text-sm text-[var(--muted)]">Loading players…</p>
+              <p className="mt-3 text-sm text-[var(--muted)]">Loading…</p>
             </Center>
           )}
-          {error && (
+          {error && section !== "signups" && (
             <Center>
               <p className="max-w-sm text-center">{error}</p>
               <button className="mt-5 rounded-xl bg-[var(--teal)] px-5 py-3 font-semibold text-white" onClick={() => load()}>
@@ -291,96 +289,148 @@ function Dashboard({ adminKey }: { adminKey: string }) {
             </Center>
           )}
 
-          {players && (
-            <div className="flex min-h-0 flex-1 flex-col">
-              <div className="space-y-3 px-4 pt-4">
-                <label className="flex items-center gap-2 rounded-xl border border-[var(--line)] bg-[var(--surface)] px-3 py-2.5 focus-within:border-[var(--teal)]">
-                  <Search className="h-4 w-4 text-[var(--muted)]" />
-                  <input
-                    value={query}
-                    onChange={(e) => setQuery(e.target.value)}
-                    placeholder="Search name, district or ID"
-                    className="w-full bg-transparent text-[15px] outline-none placeholder:text-[var(--muted)]"
-                  />
-                </label>
-                <div className="-mx-4 flex gap-2 overflow-x-auto px-4 pb-1 [scrollbar-width:none]">
-                  {FILTERS.map((f) => (
-                    <button
-                      key={f.id}
-                      onClick={() => setFilter(f.id)}
-                      className={`flex flex-none items-center gap-1.5 rounded-full border px-3 py-1.5 text-[13px] font-semibold transition ${
-                        filter === f.id
-                          ? f.id === "stuck"
-                            ? "border-[var(--alert)] bg-[var(--alert)] text-white"
-                            : "border-[var(--navy)] bg-[var(--navy)] text-white"
-                          : "border-[var(--line)] bg-[var(--surface)] text-[var(--ink)]"
-                      }`}
-                    >
-                      {f.label}
-                      <span className="tabular-nums opacity-70">{counts[f.id]}</span>
-                    </button>
-                  ))}
-                </div>
-              </div>
-
-              <ul className="mt-2 flex-1 space-y-2 overflow-y-auto px-4 pb-28 pt-1 lg:pb-6">
-                {shown.map((p) => (
-                  <li key={p.id}>
-                    <PlayerRow player={p} active={p.id === openId} onOpen={() => setOpenId(p.id)} adminKey={adminKey} onSent={replace} />
-                  </li>
-                ))}
-                {!shown.length && (
-                  <li className="rounded-xl border border-dashed border-[var(--line)] px-4 py-10 text-center text-sm text-[var(--muted)]">
-                    {filter === "stuck" ? "Nobody is stuck right now." : "No players match."}
-                  </li>
-                )}
-              </ul>
-            </div>
+          {players && section === "home" && (
+            <HomeView players={players} counts={counts} signups={signups} adminKey={adminKey} go={go} onRead={setReading} refreshing={refreshing} onRefresh={refresh} />
           )}
-        </div>
 
-        {/* ---- right: player (full screen on phones) ---- */}
-        <div
-          className={`${open || adding ? "fixed inset-0 z-30 overflow-y-auto" : "hidden"} bg-[var(--bg)] lg:static lg:block lg:h-dvh lg:overflow-y-auto`}
-        >
-          {adding ? (
-            <AddPlayer
+          {players && section === "stories" && (
+            <StoriesView
               adminKey={adminKey}
-              onBack={() => setAdding(false)}
-              onAdded={(p) => {
-                setPlayers((xs) => [...(xs || []), p]);
-                setAdding(false);
+              players={players}
+              onRead={setReading}
+              onOpenPlayer={(p) => {
+                go("players");
                 setOpenId(p.id);
               }}
             />
-          ) : open ? (
-            <PlayerPage key={open.id} adminKey={adminKey} player={open} onBack={() => setOpenId(null)} onChange={replace} toast={showToast} />
-          ) : (
-            <div className="hidden h-full flex-col items-center justify-center px-10 text-center lg:flex">
-              <Over stage={0} large />
-              <p className="mt-6 font-heading text-lg font-bold">Choose a player</p>
-              <p className="mt-1 max-w-xs text-sm text-[var(--muted)]">
-                The six balls show each player&apos;s journey: sent, opened, agreed, interviewed, story, approved.
-              </p>
+          )}
+
+          {section === "signups" && <Registrations adminKey={adminKey} />}
+
+          {players && section === "players" && (
+            <div className="lg:grid lg:h-dvh lg:grid-cols-[minmax(340px,420px)_1fr]">
+              <div className="lg:flex lg:h-dvh lg:flex-col lg:overflow-hidden lg:border-r lg:border-[var(--line)]">
+                <header className="px-4 pb-1 pt-5">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <h1 className="font-heading text-2xl font-bold">Players</h1>
+                      <p className="text-sm text-[var(--muted)]">
+                        {players.length} players · {counts.finished} interviewed
+                      </p>
+                    </div>
+                    <RefreshButton spinning={refreshing} onClick={refresh} />
+                  </div>
+                </header>
+                <div className="space-y-3 px-4 pt-3">
+                  <label className="flex items-center gap-2 rounded-xl border border-[var(--line)] bg-[var(--surface)] px-3 py-3 focus-within:border-[var(--teal)]">
+                    <Search className="h-4 w-4 text-[var(--muted)]" />
+                    <input
+                      value={query}
+                      onChange={(e) => setQuery(e.target.value)}
+                      placeholder="Search by name, place or phone"
+                      className="w-full bg-transparent text-[15px] outline-none placeholder:text-[var(--muted)]"
+                    />
+                  </label>
+                  <div className="-mx-4 flex gap-2 overflow-x-auto px-4 pb-1 [scrollbar-width:none]">
+                    {FILTERS.map((f) => (
+                      <button
+                        key={f.id}
+                        onClick={() => setFilter(f.id)}
+                        className={`flex flex-none items-center gap-1.5 rounded-full border px-3.5 py-2 text-[13px] font-semibold transition ${
+                          filter === f.id
+                            ? f.id === "stuck"
+                              ? "border-[var(--alert)] bg-[var(--alert)] text-white"
+                              : "border-[var(--navy)] bg-[var(--navy)] text-white"
+                            : "border-[var(--line)] bg-[var(--surface)] text-[var(--ink)]"
+                        }`}
+                      >
+                        {f.label}
+                        <span className="tabular-nums opacity-70">{counts[f.id]}</span>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+                <ul className="mt-2 flex-1 space-y-2 px-4 pb-28 pt-1 lg:overflow-y-auto lg:pb-24">
+                  {shown.map((p) => (
+                    <li key={p.id}>
+                      <PlayerRow player={p} active={p.id === openId} onOpen={() => setOpenId(p.id)} adminKey={adminKey} onSent={replace} />
+                    </li>
+                  ))}
+                  {!shown.length && (
+                    <li className="rounded-xl border border-dashed border-[var(--line)] px-4 py-10 text-center text-sm text-[var(--muted)]">
+                      {filter === "stuck" ? "Nobody needs a reminder right now." : "No players match."}
+                    </li>
+                  )}
+                </ul>
+              </div>
+
+              <div className={`${open || adding ? "fixed inset-0 z-30 overflow-y-auto" : "hidden"} bg-[var(--bg)] lg:static lg:block lg:h-dvh lg:overflow-y-auto`}>
+                {adding ? (
+                  <AddPlayer
+                    adminKey={adminKey}
+                    onBack={() => setAdding(false)}
+                    onAdded={(p) => {
+                      setPlayers((xs) => [...(xs || []), p]);
+                      setAdding(false);
+                      setOpenId(p.id);
+                    }}
+                  />
+                ) : open ? (
+                  <PlayerPage key={open.id} adminKey={adminKey} player={open} onBack={() => setOpenId(null)} onChange={replace} toast={showToast} onRead={() => setReading(open)} />
+                ) : (
+                  <div className="hidden h-full flex-col items-center justify-center px-10 text-center lg:flex">
+                    <Users className="h-10 w-10 text-[var(--line)]" />
+                    <p className="mt-4 font-heading text-lg font-bold">Choose a player</p>
+                    <p className="mt-1 max-w-xs text-sm text-[var(--muted)]">You&apos;ll see their interview, photos and story here.</p>
+                  </div>
+                )}
+              </div>
             </div>
           )}
         </div>
       </div>
 
-      {!adding && (
+      {/* bottom bar on phones */}
+      <nav className="fixed inset-x-0 bottom-0 z-20 border-t border-[var(--line)] bg-[var(--surface)]/95 pb-[env(safe-area-inset-bottom)] backdrop-blur lg:hidden" aria-label="Main">
+        <ul className="grid grid-cols-4">
+          {NAV.map((n) => (
+            <li key={n.id}>
+              <button
+                onClick={() => go(n.id)}
+                aria-current={section === n.id ? "page" : undefined}
+                className={`relative flex w-full flex-col items-center gap-1 py-2.5 text-[11px] font-semibold ${section === n.id ? "text-[var(--navy)]" : "text-[var(--muted)]"}`}
+              >
+                <span className={`flex h-8 w-14 items-center justify-center rounded-full transition ${section === n.id ? "bg-[var(--teal-soft)]" : ""}`}>
+                  <n.icon className="h-5 w-5" />
+                </span>
+                {n.label}
+                {n.id === "signups" && !!signups && (
+                  <span className="absolute right-[22%] top-1.5">
+                    <Badge n={signups} />
+                  </span>
+                )}
+              </button>
+            </li>
+          ))}
+        </ul>
+      </nav>
+
+      {section === "players" && !adding && !open && (
         <button
           onClick={() => {
             setOpenId(null);
             setAdding(true);
           }}
-          className="fixed bottom-5 right-5 z-20 flex items-center gap-2 rounded-full bg-[var(--navy)] px-5 py-3.5 text-[15px] font-semibold text-white shadow-[0_12px_30px_-10px_rgba(11,31,68,0.6)] transition hover:bg-[var(--navy2)] lg:bottom-6 lg:left-6 lg:right-auto"
+          className="fixed bottom-20 right-4 z-20 flex items-center gap-2 rounded-full bg-[var(--navy)] px-5 py-3.5 text-[15px] font-semibold text-white shadow-[0_12px_30px_-10px_rgba(11,31,68,0.6)] transition hover:bg-[var(--navy2)] lg:bottom-6 lg:right-6"
         >
           <Plus className="h-5 w-5" /> Add player
         </button>
       )}
 
+      {reading && <StoryReader adminKey={adminKey} player={reading} onClose={() => setReading(null)} toast={showToast} />}
+
       {toast && (
-        <div role="status" className="fixed inset-x-0 bottom-24 z-40 mx-auto w-fit rounded-full bg-[var(--navy)] px-4 py-2 text-sm font-semibold text-white shadow-lg">
+        <div role="status" className="fixed inset-x-0 bottom-24 z-[60] mx-auto w-fit rounded-full bg-[var(--navy)] px-4 py-2 text-sm font-semibold text-white shadow-lg">
           {toast}
         </div>
       )}
@@ -388,12 +438,197 @@ function Dashboard({ adminKey }: { adminKey: string }) {
   );
 }
 
-function ScoreCell({ value, label, tone }: { value: number | string; label: string; tone?: "gold" | "teal" }) {
-  const color = tone === "gold" ? "text-[var(--gold)]" : tone === "teal" ? "text-[var(--teal-bright)]" : "text-white";
+function Badge({ n }: { n: number }) {
+  return <span className="ml-auto rounded-full bg-[var(--alert)] px-1.5 py-0.5 text-[10px] font-bold leading-none text-white">{n}</span>;
+}
+
+function RefreshButton({ spinning, onClick, dark }: { spinning: boolean; onClick: () => void; dark?: boolean }) {
   return (
-    <div className="border-r border-white/10 px-2 py-2.5 text-center last:border-r-0">
-      <p className={`font-display text-[34px] leading-none tabular-nums ${color}`}>{value}</p>
-      <p className="mt-1 text-[10px] font-semibold uppercase tracking-[0.12em] text-white/60">{label}</p>
+    <button
+      aria-label="Refresh"
+      onClick={onClick}
+      className={`rounded-full p-2.5 transition focus-visible:outline focus-visible:outline-2 focus-visible:outline-[var(--teal)] ${
+        dark ? "bg-white/10 text-white hover:bg-white/20" : "border border-[var(--line)] bg-[var(--surface)] hover:border-[var(--teal)]"
+      }`}
+    >
+      <RefreshCw className={`h-4 w-4 ${spinning ? "animate-spin" : ""}`} />
+    </button>
+  );
+}
+
+// ---------- home ----------
+
+function HomeView({
+  players,
+  counts,
+  signups,
+  adminKey,
+  go,
+  onRead,
+  refreshing,
+  onRefresh,
+}: {
+  players: Player[];
+  counts: Record<Filter, number>;
+  signups: number | null;
+  adminKey: string;
+  go: (s: Section, f?: Filter) => void;
+  onRead: (p: Player) => void;
+  refreshing: boolean;
+  onRefresh: () => void;
+}) {
+  const told = counts.finished;
+  const toRead = players.filter((p) => stageOf(p) === 5);
+  const needStory = players.filter((p) => stageOf(p) === 4);
+  const latest = players
+    .filter((p) => p.pdfEnUrl)
+    .sort((a, b) => String(b.updated).localeCompare(String(a.updated)))
+    .slice(0, 4);
+  const hour = new Date().getHours();
+  const hello = hour < 12 ? "Good morning" : hour < 17 ? "Good afternoon" : "Good evening";
+
+  const todo: { tone: "gold" | "teal" | "alert" | "navy"; icon: React.ReactNode; title: string; text: string; onClick: () => void }[] = [];
+  if (toRead.length)
+    todo.push({
+      tone: "gold",
+      icon: <BookOpen className="h-5 w-5" />,
+      title: `${toRead.length} ${toRead.length === 1 ? "story is" : "stories are"} ready to read`,
+      text: `Read ${toRead.length === 1 ? "it" : "them"}, then send the Kannada version to the player for their OK.`,
+      onClick: () => go("stories"),
+    });
+  if (needStory.length)
+    todo.push({
+      tone: "teal",
+      icon: <Sparkles className="h-5 w-5" />,
+      title: `${needStory.length} ${needStory.length === 1 ? "interview is" : "interviews are"} waiting for a story`,
+      text: "They are written automatically at 12:45 pm, or you can write one now.",
+      onClick: () => go("stories"),
+    });
+  if (counts.stuck)
+    todo.push({
+      tone: "alert",
+      icon: <BellRing className="h-5 w-5" />,
+      title: `${counts.stuck} ${counts.stuck === 1 ? "player needs" : "players need"} a reminder`,
+      text: "They opened the link but haven't finished for a day or more.",
+      onClick: () => go("players", "stuck"),
+    });
+  if (signups)
+    todo.push({
+      tone: "navy",
+      icon: <ClipboardList className="h-5 w-5" />,
+      title: `${signups} KWPL ${signups === 1 ? "sign-up" : "sign-ups"} to check`,
+      text: "Confirm the player or mark them to call.",
+      onClick: () => go("signups"),
+    });
+  if (counts.notSent)
+    todo.push({
+      tone: "navy",
+      icon: <MessageCircle className="h-5 w-5" />,
+      title: `${counts.notSent} ${counts.notSent === 1 ? "player hasn't" : "players haven't"} been invited`,
+      text: "Send their interview link on WhatsApp.",
+      onClick: () => go("players", "notSent"),
+    });
+
+  const toneCls = {
+    gold: "bg-[var(--gold-soft)] text-[#7D5A1E]",
+    teal: "bg-[var(--teal-soft)] text-[var(--teal)]",
+    alert: "bg-[var(--alert-soft)] text-[var(--alert)]",
+    navy: "bg-[var(--bg)] text-[var(--navy)]",
+  };
+
+  return (
+    <div>
+      <header className="bg-[var(--navy)] px-4 pb-16 pt-5 text-white lg:px-8">
+        <div className="mx-auto flex max-w-5xl items-start justify-between gap-3">
+          <div className="flex items-center gap-3">
+            <span className="lg:hidden">
+              <Logo small />
+            </span>
+            <div>
+              <p className="text-sm text-white/60">{hello}, Shiva</p>
+              <h1 className="font-heading text-2xl font-bold leading-tight">Players&apos; stories</h1>
+            </div>
+          </div>
+          <RefreshButton spinning={refreshing} onClick={onRefresh} dark />
+        </div>
+      </header>
+
+      <main className="mx-auto -mt-12 max-w-5xl space-y-6 px-4 pb-10 lg:px-8">
+        {/* progress, in words */}
+        <section className="rounded-2xl border border-[var(--line)] bg-[var(--surface)] p-5 shadow-[0_18px_40px_-28px_rgba(11,31,68,0.55)]">
+          <p className="text-[15px]">
+            <span className="font-display text-5xl leading-none tabular-nums text-[var(--navy)]">{told}</span>
+            <span className="text-[var(--muted)]"> of {players.length} players have told their story</span>
+          </p>
+          <div className="mt-4 h-2.5 overflow-hidden rounded-full bg-[var(--bg)]" aria-hidden>
+            <div
+              className="h-full rounded-full bg-gradient-to-r from-[var(--teal)] to-[var(--gold)] transition-[width] duration-700"
+              style={{ width: `${players.length ? (told / players.length) * 100 : 0}%` }}
+            />
+          </div>
+          <dl className="mt-4 grid grid-cols-3 gap-2 text-center">
+            {[
+              { n: counts.waiting + counts.started, l: "on the way" },
+              { n: players.filter((p) => p.pdfEnUrl).length, l: "stories written" },
+              { n: players.filter((p) => stageOf(p) === 6).length, l: "approved" },
+            ].map((x) => (
+              <div key={x.l} className="rounded-xl bg-[var(--bg)] px-2 py-2.5">
+                <dt className="sr-only">{x.l}</dt>
+                <dd className="font-heading text-xl font-bold tabular-nums">{x.n}</dd>
+                <dd className="text-xs text-[var(--muted)]">{x.l}</dd>
+              </div>
+            ))}
+          </dl>
+        </section>
+
+        {/* what needs Shiva */}
+        <section>
+          <h2 className="font-heading text-lg font-bold">What needs you</h2>
+          {todo.length ? (
+            <ul className="mt-3 grid gap-2.5 lg:grid-cols-2">
+              {todo.map((t) => (
+                <li key={t.title}>
+                  <button
+                    onClick={t.onClick}
+                    className="flex w-full items-center gap-3.5 rounded-2xl border border-[var(--line)] bg-[var(--surface)] p-4 text-left transition hover:border-[var(--teal)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-[var(--teal)]"
+                  >
+                    <span className={`flex h-11 w-11 flex-none items-center justify-center rounded-xl ${toneCls[t.tone]}`}>{t.icon}</span>
+                    <span className="min-w-0 flex-1">
+                      <span className="block font-semibold">{t.title}</span>
+                      <span className="block text-sm text-[var(--muted)]">{t.text}</span>
+                    </span>
+                    <ChevronRight className="h-5 w-5 flex-none text-[var(--muted)]" />
+                  </button>
+                </li>
+              ))}
+            </ul>
+          ) : (
+            <p className="mt-3 rounded-2xl border border-dashed border-[var(--line)] p-6 text-center text-[var(--muted)]">All caught up. Nothing needs you right now.</p>
+          )}
+        </section>
+
+        {/* latest stories */}
+        {latest.length > 0 && (
+          <section>
+            <div className="flex items-baseline justify-between">
+              <h2 className="font-heading text-lg font-bold">Latest stories</h2>
+              <button onClick={() => go("stories")} className="text-sm font-semibold text-[var(--teal)]">
+                See all
+              </button>
+            </div>
+            <ul className="mt-3 grid grid-cols-2 gap-4 sm:grid-cols-4">
+              {latest.map((p) => (
+                <li key={p.id}>
+                  <button onClick={() => onRead(p)} className="group block w-full text-left">
+                    <StoryCover adminKey={adminKey} playerId={p.id} className="aspect-[1/1.414] rounded-lg ring-1 ring-[var(--line)] transition group-hover:-translate-y-0.5" />
+                    <p className="mt-2 truncate text-sm font-semibold">{p.name}</p>
+                  </button>
+                </li>
+              ))}
+            </ul>
+          </section>
+        )}
+      </main>
     </div>
   );
 }
@@ -451,7 +686,7 @@ function PlayerRow({
           <span className="mt-1 flex items-center gap-2">
             <Over stage={st} stuck={stuck} />
             <span className={`truncate text-xs ${stuck ? "font-semibold text-[var(--alert)]" : "text-[var(--muted)]"}`}>
-              {stuck ? `Stuck at "${STAGES[st - 1] || "Sent"}" · ${ago(player.updated)}` : player.hometown || "—"}
+              {stuck ? `Needs a reminder · ${ago(player.updated)}` : [STATUS_WORDS[st], player.hometown].filter(Boolean).join(" · ")}
             </span>
           </span>
         </span>
@@ -460,7 +695,7 @@ function PlayerRow({
         <SendButton adminKey={adminKey} player={player} onSent={onSent} compact />
       ) : st >= 4 ? (
         <span className="flex-none rounded-full bg-[var(--gold-soft)] px-2.5 py-1 text-[11px] font-bold text-[#7D5A1E]">
-          {st >= 6 ? "Approved" : st === 5 ? "Story ready" : "Interviewed"}
+          {st >= 6 ? "Approved" : st === 5 ? "Story ready" : "Interview done"}
         </span>
       ) : null}
     </div>
@@ -539,29 +774,26 @@ function PlayerPage({
   onBack,
   onChange,
   toast,
+  onRead,
 }: {
   adminKey: string;
   player: Player;
   onBack: () => void;
   onChange: (p: Player) => void;
   toast: (t: string) => void;
+  onRead: () => void;
 }) {
   const [draft, setDraft] = useState<Record<string, string>>(() =>
     Object.fromEntries(EDIT_FIELDS.map((f) => [f.key, String(player[f.key] ?? "")])),
   );
   const [saving, setSaving] = useState(false);
-  const [files, setFiles] = useState<Record<string, DriveFile[]> | null>(null);
+  const { media, failed: mediaFailed } = useMedia(adminKey, player.id);
+  const [showDetails, setShowDetails] = useState(false);
   const [work, setWork] = useState("");
 
   const st = stageOf(player);
   const stuck = isStuck(player);
   const dirty = EDIT_FIELDS.some((f) => (draft[f.key] ?? "") !== String(player[f.key] ?? ""));
-
-  useEffect(() => {
-    storyAdmin<{ files: Record<string, DriveFile[]> }>("files", adminKey, { id: player.id }, 90000)
-      .then((r) => setFiles(r.files))
-      .catch(() => setFiles({}));
-  }, [adminKey, player.id]);
 
   const save = async () => {
     setSaving(true);
@@ -619,11 +851,8 @@ function PlayerPage({
     }
   };
 
-  const interviewFiles = (files?.interview || []).filter((f) => !/^Consent|^Diagnostics/.test(f.name));
-  const videos = interviewFiles.filter((f) => f.mime.startsWith("video/"));
-  const texts = interviewFiles.filter((f) => /transcript.*\.txt$|careful transcript/.test(f.name));
-  const photos = [...(files?.uploads || []), ...(files?.dmsa || [])];
-  const hasInterview = st >= 4 || /incomplete/.test(player.status) || videos.length > 0;
+  const parts = interviewParts(media);
+  const hasInterview = st >= 4 || /incomplete/.test(player.status) || !!parts.video;
   const hasStory = !!player.pdfEnUrl;
 
   // What Shiva should do next, in one sentence and one button.
@@ -646,13 +875,20 @@ function PlayerPage({
         text: player.pdfKnUrl
           ? `Send ${player.greet} the Kannada story to read, then mark it approved.`
           : `Story ready. Make the Kannada version so ${player.greet} can read and approve it.`,
-        action: player.pdfKnUrl ? null : <PrimaryAction onClick={() => story("kn")} icon={<Sparkles className="h-4 w-4" />} label="Create Kannada version" />,
+        action: player.pdfKnUrl ? (
+          <PrimaryAction onClick={onRead} icon={<BookOpen className="h-4 w-4" />} label="Open the story to share it" />
+        ) : (
+          <PrimaryAction onClick={() => story("kn")} icon={<Sparkles className="h-4 w-4" />} label="Create Kannada version" />
+        ),
       };
-    return { text: `${player.greet} approved the story. It's ready to share with donors.`, action: null };
+    return {
+      text: `${player.greet} approved the story. It's ready to share with donors.`,
+      action: <PrimaryAction onClick={onRead} icon={<BookOpen className="h-4 w-4" />} label="Read & share" />,
+    };
   })();
 
   return (
-    <div className="pb-28">
+    <div className="min-h-full">
       <header className="sticky top-0 z-10 border-b border-[var(--line)] bg-[var(--bg)]/95 px-4 py-3 backdrop-blur">
         <div className="flex items-center gap-3">
           <button
@@ -671,7 +907,7 @@ function PlayerPage({
         </div>
       </header>
 
-      <main className="mx-auto max-w-2xl space-y-4 px-4 pt-4">
+      <main className="mx-auto max-w-2xl space-y-4 px-4 pb-8 pt-4">
         {/* the over, with labels */}
         <section className="rounded-2xl border border-[var(--line)] bg-[var(--surface)] p-4">
           <div className="grid grid-cols-6 gap-1">
@@ -701,85 +937,97 @@ function PlayerPage({
           </div>
         </section>
 
+        {/* story */}
+        {hasStory && (
+          <section className="overflow-hidden rounded-2xl border border-[var(--line)] bg-[var(--surface)]">
+            <div className="flex gap-4 p-4">
+              <button onClick={onRead} className="flex-none" aria-label="Read the story">
+                <StoryCover adminKey={adminKey} playerId={player.id} className="aspect-[1/1.414] w-24 rounded-md ring-1 ring-[var(--line)]" />
+              </button>
+              <div className="min-w-0 flex-1">
+                <h2 className="font-heading text-[17px] font-bold">Impact story</h2>
+                <p className="mt-0.5 text-sm text-[var(--muted)]">
+                  {player.approved ? `${player.greet} approved it.` : player.pdfKnUrl ? "English and Kannada ready." : "English ready."}
+                </p>
+                <button onClick={onRead} className="mt-3 flex w-full items-center justify-center gap-2 rounded-xl bg-[var(--navy)] px-4 py-3 font-semibold text-white transition hover:bg-[var(--navy2)]">
+                  <BookOpen className="h-4 w-4" /> Read &amp; share
+                </button>
+              </div>
+            </div>
+            <label className="flex items-center gap-3 border-t border-[var(--line)] px-4 py-3 text-sm">
+              <input type="checkbox" className="h-5 w-5 accent-[var(--teal)]" checked={!!player.approved} onChange={(e) => approve(e.target.checked)} />
+              {player.greet} has read and approved the story
+            </label>
+            {!work && (
+              <div className="flex flex-wrap gap-x-4 gap-y-2 border-t border-[var(--line)] px-4 py-3 text-sm">
+                <TextButton onClick={() => story("en")} label="Rewrite story" />
+                <TextButton onClick={() => story("kn")} label={player.pdfKnUrl ? "Redo Kannada version" : "Create Kannada version"} />
+                <TextButton onClick={refreshPdf} label="Update after editing in Slides" />
+              </div>
+            )}
+          </section>
+        )}
+
+        {/* interview */}
+        <Card title="Interview" subtitle={parts.video?.seconds ? `${Math.max(1, Math.round(parts.video.seconds / 60))} minutes with Maitri` : undefined}>
+          {!media && !mediaFailed && <Loader2 className="h-5 w-5 animate-spin text-[var(--teal)]" />}
+          {mediaFailed && <p className="text-sm text-[var(--alert)]">Couldn&apos;t load the files. Pull down to refresh or try again later.</p>}
+          {media && !hasInterview && <p className="text-sm text-[var(--muted)]">No interview yet.</p>}
+          {media && (
+            <div className="space-y-3">
+              {parts.video && <VideoBox file={parts.video} />}
+              {parts.conversation && <Conversation adminKey={adminKey} playerId={player.id} file={parts.conversation} name={player.greet || player.name} />}
+            </div>
+          )}
+        </Card>
+
+        {/* photos */}
+        <Card title="Photos & videos" subtitle={media ? `${parts.photos.length} from ${player.greet} and DMSA` : undefined}>
+          {!media && !mediaFailed && <Loader2 className="h-5 w-5 animate-spin text-[var(--teal)]" />}
+          {media && <PhotoGrid files={parts.photos} emptyText={`No photos yet. ${player.greet} can add them after the interview.`} />}
+        </Card>
+
         {/* invitation */}
-        <Card title="Invitation">
+        <Card title="Interview link">
           <div className="grid grid-cols-2 gap-2">
             <QuietButton
               onClick={() => navigator.clipboard?.writeText(player.link).then(() => toast("Link copied"))}
               icon={<Copy className="h-4 w-4" />}
               label="Copy link"
             />
-            <QuietLink href={player.folderUrl} icon={<FolderOpen className="h-4 w-4" />} label="Drive folder" />
+            <SendButton adminKey={adminKey} player={player} onSent={onChange} compact label="Send" />
           </div>
-          {!player.canWhatsApp && <p className="mt-3 text-sm text-[var(--alert)]">Add a 10-digit WhatsApp number in Details to send the link.</p>}
-          {player.consent && <p className="mt-3 text-xs text-[var(--muted)]">Consent: {player.consent}</p>}
-        </Card>
-
-        {/* interview */}
-        <Card title="Interview">
-          {!files && <Loader2 className="h-5 w-5 animate-spin text-[var(--teal)]" />}
-          {files && !hasInterview && <p className="text-sm text-[var(--muted)]">No interview yet.</p>}
-          {files && hasInterview && (
-            <>
-              <p className="text-sm">
-                <span className="font-display text-2xl tabular-nums">{player.minutes || "–"}</span>
-                <span className="text-[var(--muted)]"> min recorded · {player.uploads || "no photos uploaded yet"}</span>
-              </p>
-              <div className="mt-3 space-y-2">
-                {videos.map((f) => (
-                  <FileRow key={f.url} file={f} icon={<Video className="h-4 w-4 text-[var(--teal)]" />} />
-                ))}
-                {texts.map((f) => (
-                  <FileRow key={f.url} file={f} icon={<FileText className="h-4 w-4 text-[var(--teal)]" />} />
-                ))}
-              </div>
-            </>
-          )}
-          {files && photos.length > 0 && (
-            <a href={player.folderUrl} target="_blank" rel="noreferrer" className="mt-3 flex items-center gap-2 text-sm font-semibold text-[var(--teal)] hover:underline">
-              <ImageIcon className="h-4 w-4" /> {photos.length} photo and video file{photos.length === 1 ? "" : "s"} in their folder
-            </a>
-          )}
-        </Card>
-
-        {/* story */}
-        <Card title="Impact story">
-          {!hasInterview && <p className="text-sm text-[var(--muted)]">Available after the interview.</p>}
-          {hasInterview && !hasStory && <p className="text-sm text-[var(--muted)]">No story yet. Use the Next step above.</p>}
-          {hasStory && (
-            <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
-              <QuietLink href={player.pdfEnUrl} icon={<FileText className="h-4 w-4" />} label="English PDF" />
-              {player.pdfKnUrl && <QuietLink href={player.pdfKnUrl} icon={<FileText className="h-4 w-4" />} label="Kannada PDF" />}
-              <QuietLink href={player.slidesUrl} icon={<ExternalLink className="h-4 w-4" />} label="Edit in Slides" />
-            </div>
-          )}
-          {hasStory && !work && (
-            <div className="mt-3 flex flex-wrap gap-x-4 gap-y-2 text-sm">
-              <TextButton onClick={() => story("en")} label="Rewrite story" />
-              <TextButton onClick={() => story("kn")} label={player.pdfKnUrl ? "Redo Kannada version" : "Create Kannada version"} />
-              <TextButton onClick={refreshPdf} label="Update PDFs after editing Slides" />
-            </div>
-          )}
-          {hasStory && (
-            <label className="mt-4 flex items-center gap-3 rounded-xl border border-[var(--line)] p-3 text-sm">
-              <input type="checkbox" className="h-5 w-5 accent-[var(--teal)]" checked={!!player.approved} onChange={(e) => approve(e.target.checked)} />
-              {player.greet} has read and approved the story
-            </label>
-          )}
+          {!player.canWhatsApp && <p className="mt-3 text-sm text-[var(--alert)]">Add a 10-digit WhatsApp number in the details below to send the link.</p>}
+          {player.consent && <p className="mt-3 text-xs text-[var(--muted)]">Consent given: {player.consent.replace(/^Yes - /, "")}</p>}
         </Card>
 
         {/* details */}
-        <Card title="Details" subtitle="Maitri and the story use these.">
-          <div className="space-y-4">
-            {EDIT_FIELDS.map((f) => (
-              <Field key={f.key} def={f} value={draft[f.key] ?? ""} onChange={(v) => setDraft((d) => ({ ...d, [f.key]: v }))} />
-            ))}
-          </div>
-        </Card>
+        <section className="rounded-2xl border border-[var(--line)] bg-[var(--surface)]">
+          <button onClick={() => setShowDetails((v) => !v)} className="flex w-full items-center justify-between p-4 text-left" aria-expanded={showDetails}>
+            <span>
+              <span className="block font-heading text-[15px] font-bold">Player details</span>
+              <span className="block text-xs text-[var(--muted)]">Maitri and the story use these. {!player.support && "DMSA support is still empty."}</span>
+            </span>
+            <ChevronDown className={`h-5 w-5 transition ${showDetails ? "rotate-180" : ""}`} />
+          </button>
+          {showDetails && (
+            <div className="space-y-4 border-t border-[var(--line)] p-4">
+              {EDIT_FIELDS.map((f) => (
+                <Field key={f.key} def={f} value={draft[f.key] ?? ""} onChange={(v) => setDraft((d) => ({ ...d, [f.key]: v }))} />
+              ))}
+            </div>
+          )}
+        </section>
+
+        {media?.folderUrl && (
+          <a href={media.folderUrl} target="_blank" rel="noreferrer" className="flex items-center justify-center gap-2 py-2 text-sm text-[var(--muted)] hover:text-[var(--ink)]">
+            <FolderOpen className="h-4 w-4" /> Everything is saved in Google Drive · open folder
+          </a>
+        )}
       </main>
 
       {dirty && (
-        <div className="fixed inset-x-0 bottom-0 z-20 border-t border-[var(--line)] bg-[var(--surface)]/95 p-3 backdrop-blur lg:left-auto lg:right-0 lg:w-[calc(100%-min(460px,100%))]">
+        <div className="sticky bottom-0 z-20 border-t border-[var(--line)] bg-[var(--surface)]/95 p-3 backdrop-blur">
           <button
             onClick={save}
             disabled={saving}
@@ -878,40 +1126,11 @@ function Card({ title, subtitle, children }: { title: string; subtitle?: string;
   );
 }
 
-function FileRow({ file, icon }: { file: DriveFile; icon: React.ReactNode }) {
-  return (
-    <a
-      href={file.url}
-      target="_blank"
-      rel="noreferrer"
-      className="flex items-center gap-2 rounded-lg border border-[var(--line)] px-3 py-2.5 text-sm transition hover:border-[var(--teal)]"
-    >
-      {icon}
-      <span className="min-w-0 flex-1 truncate">{file.name.replace(/^.* - /, "")}</span>
-      <span className="text-xs tabular-nums text-[var(--muted)]">{file.size > 1e6 ? `${Math.round(file.size / 1e6)} MB` : ""}</span>
-    </a>
-  );
-}
-
 function PrimaryAction({ onClick, icon, label }: { onClick: () => void; icon: React.ReactNode; label: string }) {
   return (
     <button onClick={onClick} className="flex w-full items-center justify-center gap-2 rounded-lg bg-[var(--navy)] px-4 py-3 text-[15px] font-semibold text-white transition hover:bg-[var(--navy2)]">
       {icon} {label}
     </button>
-  );
-}
-
-function QuietLink({ href, icon, label }: { href: string; icon: React.ReactNode; label: string }) {
-  if (!href) return null;
-  return (
-    <a
-      href={href}
-      target="_blank"
-      rel="noreferrer"
-      className="flex items-center justify-center gap-2 rounded-lg border border-[var(--line)] px-3 py-2.5 text-sm font-semibold transition hover:border-[var(--teal)]"
-    >
-      {icon} {label}
-    </a>
   );
 }
 

@@ -7,33 +7,6 @@ import { storyAdmin } from "@/lib/story/api";
 
 const BASE = process.env.NEXT_PUBLIC_BASE_PATH || "";
 
-export type Section = "stories" | "registrations";
-
-/** The two halves of the admin app, switched from the navy header. */
-export function SectionTabs({ section, onChange }: { section: Section; onChange: (s: Section) => void }) {
-  const tabs: { id: Section; label: string }[] = [
-    { id: "stories", label: "Player stories" },
-    { id: "registrations", label: "Registrations" },
-  ];
-  return (
-    <div role="tablist" className="mt-3 grid grid-cols-2 rounded-xl bg-black/25 p-1">
-      {tabs.map((t) => (
-        <button
-          key={t.id}
-          role="tab"
-          aria-selected={section === t.id}
-          onClick={() => onChange(t.id)}
-          className={`rounded-lg py-2 text-[13px] font-semibold transition focus-visible:outline focus-visible:outline-2 focus-visible:outline-[var(--teal-bright)] ${
-            section === t.id ? "bg-white text-[var(--navy)] shadow" : "text-white/70 hover:text-white"
-          }`}
-        >
-          {t.label}
-        </button>
-      ))}
-    </div>
-  );
-}
-
 interface Reg {
   id: string;
   status: string;
@@ -65,7 +38,7 @@ function kindOf(r: Reg): Kind {
 }
 
 const KIND_STYLE: Record<Kind, { label: string; cls: string }> = {
-  review: { label: "Needs review", cls: "bg-[var(--gold-soft)] text-[#7d5a1e]" },
+  review: { label: "To check", cls: "bg-[var(--gold-soft)] text-[#7d5a1e]" },
   confirmed: { label: "Confirmed", cls: "bg-[var(--teal-soft)] text-[var(--teal)]" },
   followup: { label: "Call them", cls: "bg-[var(--alert-soft)] text-[var(--alert)]" },
   unfinished: { label: "Not submitted", cls: "bg-[var(--bg)] text-[var(--muted)]" },
@@ -73,7 +46,7 @@ const KIND_STYLE: Record<Kind, { label: string; cls: string }> = {
 
 const FILTERS: { id: "all" | Kind; label: string }[] = [
   { id: "all", label: "All" },
-  { id: "review", label: "Needs review" },
+  { id: "review", label: "To check" },
   { id: "followup", label: "Call them" },
   { id: "confirmed", label: "Confirmed" },
   { id: "unfinished", label: "Not submitted" },
@@ -90,7 +63,7 @@ function when(iso: string) {
 
 const driveId = (url: string) => (String(url).match(/\/d\/([\w-]+)/) || [])[1] || "";
 
-export function Registrations({ adminKey, section, onSection }: { adminKey: string; section: Section; onSection: (s: Section) => void }) {
+export function Registrations({ adminKey }: { adminKey: string }) {
   const [data, setData] = useState<RegData | null>(null);
   const [error, setError] = useState("");
   const [refreshing, setRefreshing] = useState(false);
@@ -127,17 +100,13 @@ export function Registrations({ adminKey, section, onSection }: { adminKey: stri
   const open = regs.find((r) => r.id === openId) || null;
 
   return (
-    <div className="lg:grid lg:h-dvh lg:grid-cols-[minmax(380px,460px)_1fr]">
+    <div className="lg:grid lg:h-dvh lg:grid-cols-[minmax(340px,420px)_1fr]">
       <div className="lg:flex lg:h-dvh lg:flex-col lg:overflow-hidden lg:border-r lg:border-[var(--line)]">
-        <header className="bg-[var(--navy)] px-4 pb-4 pt-3 text-white">
+        <header className="px-4 pt-5">
           <div className="flex items-center justify-between gap-3">
-            <div className="flex items-center gap-3">
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img src={`${BASE}/admin-icons/icon-192.png`} alt="DMSA" className="h-9 w-9 rounded-lg" />
-              <div>
-                <p className="font-heading text-[15px] font-bold leading-tight">Registrations</p>
-                <p className="text-xs text-white/60">{data?.campaign.name.replace(" - player registration", "") || "KWPL Season 4"}</p>
-              </div>
+            <div>
+              <h1 className="font-heading text-2xl font-bold">Sign-ups</h1>
+              <p className="text-sm text-[var(--muted)]">{data?.campaign.name.replace(" - player registration", "") || "KWPL Season 4"} registration</p>
             </div>
             <button
               aria-label="Refresh"
@@ -145,16 +114,15 @@ export function Registrations({ adminKey, section, onSection }: { adminKey: stri
                 setRefreshing(true);
                 load();
               }}
-              className="rounded-full bg-white/10 p-2.5 transition hover:bg-white/20 focus-visible:outline focus-visible:outline-2 focus-visible:outline-[var(--teal)]"
+              className="rounded-full border border-[var(--line)] bg-[var(--surface)] p-2.5 transition hover:border-[var(--teal)]"
             >
               <RefreshCw className={`h-4 w-4 ${refreshing ? "animate-spin" : ""}`} />
             </button>
           </div>
-          <SectionTabs section={section} onChange={onSection} />
-          <div className="mt-4 grid grid-cols-3 overflow-hidden rounded-xl border border-white/10 bg-black/20">
-            <Score value={data ? counts.all - (counts.unfinished || 0) : "–"} label="Submitted" tone="gold" />
-            <Score value={data ? counts.review || 0 : "–"} label="To review" />
-            <Score value={data ? counts.confirmed || 0 : "–"} label="Confirmed" tone="teal" />
+          <div className="mt-4 grid grid-cols-3 gap-2 text-center">
+            <Score value={data ? counts.all - (counts.unfinished || 0) : "–"} label="submitted" />
+            <Score value={data ? counts.review || 0 : "–"} label="to check" tone="gold" />
+            <Score value={data ? counts.confirmed || 0 : "–"} label="confirmed" tone="teal" />
           </div>
         </header>
 
@@ -201,7 +169,7 @@ export function Registrations({ adminKey, section, onSection }: { adminKey: stri
                 ))}
               </div>
             </div>
-            <ul className="mt-2 flex-1 space-y-2 overflow-y-auto px-4 pb-10 pt-1">
+            <ul className="mt-2 flex-1 space-y-2 px-4 pb-10 pt-1 lg:overflow-y-auto">
               {shown.map((r) => (
                 <li key={r.id}>
                   <button
@@ -254,11 +222,11 @@ export function Registrations({ adminKey, section, onSection }: { adminKey: stri
 }
 
 function Score({ value, label, tone }: { value: number | string; label: string; tone?: "gold" | "teal" }) {
-  const color = tone === "gold" ? "text-[var(--gold)]" : tone === "teal" ? "text-[var(--teal-bright)]" : "text-white";
+  const bg = tone === "gold" ? "bg-[var(--gold-soft)]" : tone === "teal" ? "bg-[var(--teal-soft)]" : "bg-[var(--surface)] border border-[var(--line)]";
   return (
-    <div className="border-r border-white/10 px-2 py-2.5 text-center last:border-r-0">
-      <p className={`font-display text-3xl leading-none tabular-nums ${color}`}>{value}</p>
-      <p className="mt-1 text-[10px] font-semibold uppercase tracking-widest text-white/60">{label}</p>
+    <div className={`rounded-xl px-2 py-2.5 ${bg}`}>
+      <p className="font-heading text-xl font-bold tabular-nums">{value}</p>
+      <p className="text-xs text-[var(--muted)]">{label}</p>
     </div>
   );
 }
