@@ -18,6 +18,7 @@ import {
   Video,
 } from "lucide-react";
 import { storyAdmin, StoryApiError } from "@/lib/story/api";
+import { Registrations, SectionTabs, type Section } from "@/components/AdminRegistrations";
 
 const BASE = process.env.NEXT_PUBLIC_BASE_PATH || "";
 const KEY_STORE = "dmsaAdminKey";
@@ -166,6 +167,21 @@ function Dashboard({ adminKey }: { adminKey: string }) {
   const [openId, setOpenId] = useState<string | null>(null);
   const [adding, setAdding] = useState(false);
   const [toast, setToast] = useState("");
+  const [section, setSection] = useState<Section>(() => {
+    try {
+      return (localStorage.getItem("dmsaAdminSection") as Section) || "stories";
+    } catch {
+      return "stories";
+    }
+  });
+  const changeSection = (s: Section) => {
+    setSection(s);
+    try {
+      localStorage.setItem("dmsaAdminSection", s);
+    } catch {
+      /* remembered for this visit only */
+    }
+  };
 
   const load = useCallback(() => {
     return storyAdmin<{ players: Player[] }>("list", adminKey, {}, 90000)
@@ -206,6 +222,13 @@ function Dashboard({ adminKey }: { adminKey: string }) {
   const finished = (players || []).filter((p) => stageOf(p) >= 4).length;
   const stories = (players || []).filter((p) => stageOf(p) >= 5).length;
 
+  if (section === "registrations")
+    return (
+      <Shell>
+        <Registrations adminKey={adminKey} section={section} onSection={changeSection} />
+      </Shell>
+    );
+
   return (
     <Shell>
       <div className="lg:grid lg:h-dvh lg:grid-cols-[minmax(380px,460px)_1fr]">
@@ -231,6 +254,7 @@ function Dashboard({ adminKey }: { adminKey: string }) {
                 <RefreshCw className={`h-4 w-4 ${refreshing ? "animate-spin" : ""}`} />
               </button>
             </div>
+            <SectionTabs section={section} onChange={changeSection} />
 
             {/* scoreboard */}
             <div className="mt-4 grid grid-cols-4 overflow-hidden rounded-xl border border-white/10 bg-black/20">

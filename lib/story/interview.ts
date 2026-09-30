@@ -22,6 +22,19 @@ export interface InterviewCallbacks {
   onEnding: () => void;
   onSaveProgress: (sentBytes: number, pendingBytes: number) => void;
   onFatal: (message: string) => void;
+  /** Form interviews: an answer Maitri recorded (field key, value). */
+  onField?: (field: string, value: string) => void;
+  /** Seconds left before a photo is taken (3, 2, 1), then 0. */
+  onCountdown?: (n: number) => void;
+}
+
+export interface InterviewOptions {
+  /** false = record audio only (form interviews do not need video). */
+  recordVideo?: boolean;
+  /** Tool that ends the interview (story: end_interview, form: finish_registration). */
+  endTool?: string;
+  /** Maitri cannot end on her own before this many seconds (the player can). */
+  minEndSeconds?: number;
 }
 
 const RECORDER_TYPES = [
@@ -93,6 +106,7 @@ export class Interview {
     private cb: InterviewCallbacks,
     /** Created (and resumed) inside the player's tap, which some browsers require. */
     private ctx: AudioContext,
+    private opts: InterviewOptions = {},
   ) {}
 
   private log(event: string) {
@@ -166,7 +180,8 @@ export class Interview {
     });
     capture.port.onmessage = (e) => this.live.sendAudio(e.data as ArrayBuffer);
 
-    this.startRecording(new MediaStream([...this.stream.getVideoTracks(), ...recMix.stream.getAudioTracks()]));
+    if (this.opts.recordVideo === false) this.startAudioRecording(new MediaStream(recMix.stream.getAudioTracks()));
+    else this.startRecording(new MediaStream([...this.stream.getVideoTracks(), ...recMix.stream.getAudioTracks()]));
     // A phone call or the system taking the camera/mic away ends the tracks:
     // finish cleanly so the recording is kept.
     this.stream.getTracks().forEach((t) => {
@@ -268,14 +283,27 @@ export class Interview {
   }
 
   private async tool(name: string, args: Record<string, unknown>) {
+    if (name === "set_field") {
+      const field = String(args.field || "");
+      const value = String(args.value ?? "");
+      this.log(`field ${field}`);
+      this.cb.onField?.(field, value);
+      return { ok: true };
+    }
     if (name === "take_portrait") {
+      // Maitri asks for the smile after triggering the photo, so count down first.
+      for (let n = 3; n > 0; n--) {
+        this.cb.onCountdown?.(n);
+        await new Promise((r) => setTimeout(r, 1000));
+      }
+      this.cb.onCountdown?.(0);
       const ok = await this.portrait();
       return { ok, note: ok ? "Photo saved." : "Camera photo failed - just continue." };
     }
-    if (name === "end_interview") {
+    if (name === (this.opts.endTool || "end_interview")) {
       // Guard against ending by mistake right at the start: only the player
-      // (End button / [END]) can finish in the first two minutes.
-      if (!this.endRequested && this.elapsed < 120) {
+      // (End button / [END]) can finish early.
+      if (!this.endRequested && this.elapsed < (this.opts.minEndSeconds ?? 120)) {
         this.log(`blocked early end_interview at ${Math.round(this.elapsed)}s`);
         return { ok: false, error: "Too early - the interview has only just started. Do not end. Continue with the next question." };
       }

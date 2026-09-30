@@ -2,18 +2,25 @@
 
 import { useSyncExternalStore } from "react";
 import InterviewApp from "@/components/InterviewApp";
+import RegistrationApp from "@/components/RegistrationApp";
 
-// The player's code comes from the link: .../dmsa-stories/?c=K7M2QX9P
-function readCode() {
-  return (new URLSearchParams(window.location.search).get("c") || "").trim().toUpperCase();
+// Player story links: .../dmsa-stories/?c=K7M2QX9P
+// Open registration links: .../dmsa-stories/?r=KWPL4
+function readLink() {
+  const q = new URLSearchParams(window.location.search);
+  const r = (q.get("r") || "").trim().toUpperCase();
+  if (r) return `r:${r}`;
+  return `c:${(q.get("c") || "").trim().toUpperCase()}`;
 }
 
 export default function Page() {
-  const code = useSyncExternalStore(
+  const link = useSyncExternalStore(
     () => () => {},
-    readCode,
+    readLink,
     () => null,
   );
-  if (code === null) return null;
-  return <InterviewApp code={code || "MISSING"} />;
+  if (link === null) return null;
+  const value = link.slice(2);
+  if (link.startsWith("r:")) return <RegistrationApp campaign={value} />;
+  return <InterviewApp code={value || "MISSING"} />;
 }

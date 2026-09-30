@@ -4,12 +4,12 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { BatteryCharging, Camera, Check, ChevronRight, Clock, ImagePlus, Loader2, Mic, Pause, Play, SkipForward, Smartphone, Square, Sun, Wifi } from "lucide-react";
 import { flushStoryLog, storyApi, StoryApiError, storyLog } from "@/lib/story/api";
 import { STRINGS, type Lang } from "@/lib/story/i18n";
-import { getCameraAndMic, Interview } from "@/lib/story/interview";
+import { getCameraAndMic, Interview, type InterviewOptions } from "@/lib/story/interview";
 import { uploadFile } from "@/lib/story/upload";
 
 type Screen = "loading" | "invalid" | "welcome" | "consent" | "camera" | "interview" | "saving" | "upload" | "thanks" | "error";
 
-interface Session {
+export interface Session {
   firstName: string;
   language: Lang;
   minutes: number;
@@ -27,12 +27,12 @@ interface UploadItem {
 }
 
 // Used if the first backend reply is slow: the interview itself does not need it.
-function fallbackSession(lang: Lang): Session {
+export function fallbackSession(lang: Lang): Session {
   return { firstName: "", language: lang, minutes: 18, hasEarlier: false, done: false, liveModels: 3 };
 }
 
 /** A button that reopens this same page in Chrome (Android), or a hint to use Safari (iPhone). */
-function OpenInChrome({ code, text, button }: { code: string; text: string; button: string }) {
+export function OpenInChrome({ code, text, button }: { code: string; text: string; button: string }) {
   const android = typeof navigator !== "undefined" && /Android/.test(navigator.userAgent);
   return (
     <div className="mt-4 rounded-xl bg-gold-600/80 p-4">
@@ -51,7 +51,7 @@ function OpenInChrome({ code, text, button }: { code: string; text: string; butt
 }
 
 /** Android in-app browsers (inside WhatsApp, Facebook...) often cannot use the camera. */
-function inAppBrowser() {
+export function inAppBrowser() {
   if (typeof navigator === "undefined") return false;
   return /; wv\)|FBAN|FBAV|Instagram|Line\//.test(navigator.userAgent) && /Android/.test(navigator.userAgent);
 }
@@ -351,7 +351,7 @@ export default function InterviewApp({ code }: { code: string }) {
   );
 }
 
-function InterviewScreen({
+export function InterviewScreen({
   audioCtx,
   code,
   lang,
@@ -361,6 +361,10 @@ function InterviewScreen({
   onEnding,
   onSaved,
   onFatal,
+  engineOptions,
+  onField,
+  panel,
+  copy,
 }: {
   audioCtx: AudioContext;
   code: string;
@@ -371,8 +375,17 @@ function InterviewScreen({
   onEnding: () => void;
   onSaved: () => void;
   onFatal: (m: string) => void;
+  /** Form interviews: audio only, a different end tool, etc. */
+  engineOptions?: InterviewOptions;
+  onField?: (field: string, value: string) => void;
+  /** Extra content under the captions (e.g. the form filling in live). */
+  panel?: React.ReactNode;
+  /** Wording that differs from the story interview (e.g. "Saving your registration"). */
+  copy?: Partial<(typeof STRINGS)[Lang]>;
 }) {
-  const t = STRINGS[lang];
+  const t = { ...STRINGS[lang], ...copy };
+  // With a form panel there is more to show: smaller Maitri, pinned controls.
+  const compact = !!panel;
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const engine = useRef<Interview | null>(null);
   const [status, setStatus] = useState<"connecting" | "live" | "reconnecting" | "closed">("connecting");
@@ -380,6 +393,7 @@ function InterviewScreen({
   const [seconds, setSeconds] = useState(0);
   const [speaking, setSpeaking] = useState(false);
   const [paused, setPaused] = useState(false);
+  const [countdown, setCountdown] = useState(0);
   const [confirmEnd, setConfirmEnd] = useState(false);
   const [flash, setFlash] = useState(false);
   const [save, setSave] = useState({ sent: 0, pending: 0 });
@@ -410,7 +424,9 @@ function InterviewScreen({
       onEnding,
       onSaveProgress: (sent, pending) => setSave({ sent, pending }),
       onFatal,
-    }, audioCtx);
+      onField,
+      onCountdown: setCountdown,
+    }, audioCtx, engineOptions);
     engine.current = it;
     it.start().catch((e) => {
       it.abort();
@@ -502,16 +518,16 @@ function InterviewScreen({
       </div>
 
       {/* Maitri */}
-      <div className="relative mt-6 flex flex-col items-center">
-        <div className="relative flex h-36 w-36 items-center justify-center">
+      <div className={`relative flex flex-col items-center ${compact ? "mt-2" : "mt-6"}`}>
+        <div className={`relative flex items-center justify-center ${compact ? "h-24 w-24" : "h-36 w-36"}`}>
           {speaking && !paused && (
             <>
               <span className="absolute inset-0 animate-ping rounded-full bg-teal-400/25" />
               <span className="absolute -inset-3 animate-pulse rounded-full border-2 border-teal-300/40" />
             </>
           )}
-          <div className="relative flex h-32 w-32 items-center justify-center rounded-full bg-gradient-to-br from-teal-400 to-navy-600 shadow-2xl shadow-teal-900/50">
-            <span className="font-display text-6xl tracking-wide text-white">{lang === "kn" ? "ಮೈ" : "M"}</span>
+          <div className={`relative flex items-center justify-center rounded-full bg-gradient-to-br from-teal-400 to-navy-600 shadow-2xl shadow-teal-900/50 ${compact ? "h-20 w-20" : "h-32 w-32"}`}>
+            <span className={`font-display tracking-wide text-white ${compact ? "text-4xl" : "text-6xl"}`}>{lang === "kn" ? "ಮೈ" : "M"}</span>
           </div>
         </div>
         <p className="mt-3 font-heading text-xl font-bold">{lang === "kn" ? "ಮೈತ್ರಿ" : "Maitri"}</p>
@@ -519,8 +535,8 @@ function InterviewScreen({
       </div>
 
       {/* caption */}
-      <div className="mx-4 mt-5 min-h-[7.5rem] rounded-2xl bg-white/5 p-4">
-        <p className="line-clamp-5 text-lg leading-relaxed text-white" aria-live="polite">
+      <div className={`mx-4 rounded-2xl bg-white/5 p-4 ${compact ? "mt-3 min-h-[6rem]" : "mt-5 min-h-[7.5rem]"}`}>
+        <p className={`text-lg leading-relaxed text-white ${compact ? "line-clamp-4" : "line-clamp-5"}`} aria-live="polite">
           {caption || "…"}
         </p>
       </div>
@@ -528,10 +544,15 @@ function InterviewScreen({
       {/* self view + topic progress */}
       <div className="mt-4 flex items-end gap-3 px-4">
         <div className="relative">
-          <video ref={attach} muted playsInline className="h-40 w-28 -scale-x-100 rounded-xl bg-black object-cover ring-2 ring-white/20" />
+          <video ref={attach} muted playsInline className={`-scale-x-100 rounded-xl bg-black object-cover ring-2 ring-white/20 ${compact ? "h-24 w-[4.5rem]" : "h-40 w-28"}`} />
           {flash && (
             <div className="absolute inset-0 flex items-center justify-center rounded-xl bg-white/80 text-xs font-bold text-navy-900">
               {t.photoTaken}
+            </div>
+          )}
+          {countdown > 0 && (
+            <div className="absolute inset-0 flex items-center justify-center rounded-xl bg-navy-950/60 font-display text-6xl text-white" aria-live="assertive">
+              {countdown}
             </div>
           )}
         </div>
@@ -543,10 +564,11 @@ function InterviewScreen({
         </div>
       </div>
 
+      {panel}
       {hidden && <p className="mx-4 mt-3 rounded-lg bg-gold-600/80 p-3 text-sm">{t.keepOpen}</p>}
 
       {/* controls */}
-      <div className="mt-auto grid grid-cols-3 gap-3 px-4 pb-6 pt-6">
+      <div className={`mt-auto grid grid-cols-3 gap-3 px-4 pb-6 pt-6 ${compact ? "sticky bottom-0 bg-gradient-to-t from-navy-950 via-navy-950/95 to-navy-950/0 pt-8" : ""}`}>
         <ControlButton
           onClick={() => engine.current?.skip()}
           disabled={status !== "live" || paused}
@@ -698,7 +720,7 @@ function UploadScreen({ code, lang, onDone }: { code: string; lang: Lang; onDone
   );
 }
 
-function SelfView({ stream, className }: { stream: MediaStream; className?: string }) {
+export function SelfView({ stream, className }: { stream: MediaStream; className?: string }) {
   const ref = useCallback(
     (el: HTMLVideoElement | null) => {
       if (el) {
@@ -711,7 +733,7 @@ function SelfView({ stream, className }: { stream: MediaStream; className?: stri
   return <video ref={ref} muted playsInline className={`-scale-x-100 bg-black object-cover ${className ?? ""}`} />;
 }
 
-function Logo() {
+export function Logo() {
   return (
     <div className="inline-flex rounded-lg bg-white px-3 py-2">
       {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -720,7 +742,7 @@ function Logo() {
   );
 }
 
-function LangToggle({ lang, setLang }: { lang: Lang; setLang: (l: Lang) => void }) {
+export function LangToggle({ lang, setLang }: { lang: Lang; setLang: (l: Lang) => void }) {
   return (
     <div className="flex rounded-full bg-white/10 p-1 text-sm font-semibold" role="group" aria-label="Language">
       {(["kn", "en"] as Lang[]).map((l) => (
@@ -737,7 +759,7 @@ function LangToggle({ lang, setLang }: { lang: Lang; setLang: (l: Lang) => void 
   );
 }
 
-function Page({ children }: { children: React.ReactNode }) {
+export function Page({ children }: { children: React.ReactNode }) {
   // Extra bottom space so the fixed action bar never covers the last lines.
   return <div className="mx-auto flex min-h-full max-w-lg flex-col px-5 pb-48 pt-6">{children}</div>;
 }
@@ -746,7 +768,7 @@ function Page({ children }: { children: React.ReactNode }) {
  * Keeps the screen's main action pinned to the bottom of the phone: players
  * on small screens were not scrolling down to find "Continue" or "Start".
  */
-function StickyBar({ children }: { children: React.ReactNode }) {
+export function StickyBar({ children }: { children: React.ReactNode }) {
   return (
     <div className="fixed inset-x-0 bottom-0 z-20 bg-gradient-to-t from-navy-950 via-navy-950 to-navy-950/80 px-5 pb-5 pt-3">
       <div className="mx-auto max-w-lg [&>button]:mt-3">{children}</div>
@@ -754,11 +776,11 @@ function StickyBar({ children }: { children: React.ReactNode }) {
   );
 }
 
-function Centered({ children }: { children: React.ReactNode }) {
+export function Centered({ children }: { children: React.ReactNode }) {
   return <div className="mx-auto flex min-h-full max-w-lg flex-col items-center justify-center px-5 py-10">{children}</div>;
 }
 
-function PrimaryButton({ children, onClick, disabled }: { children: React.ReactNode; onClick: () => void; disabled?: boolean }) {
+export function PrimaryButton({ children, onClick, disabled }: { children: React.ReactNode; onClick: () => void; disabled?: boolean }) {
   return (
     <button
       onClick={onClick}
@@ -770,7 +792,7 @@ function PrimaryButton({ children, onClick, disabled }: { children: React.ReactN
   );
 }
 
-function SecondaryButton({ children, onClick }: { children: React.ReactNode; onClick: () => void }) {
+export function SecondaryButton({ children, onClick }: { children: React.ReactNode; onClick: () => void }) {
   return (
     <button onClick={onClick} className="mt-4 flex w-full items-center justify-center gap-2 rounded-xl border border-white/20 px-6 py-4 text-base font-semibold text-white">
       {children}
