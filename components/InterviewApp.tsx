@@ -231,9 +231,11 @@ export default function InterviewApp({ code }: { code: string }) {
                   );
                 })}
               </ul>
-              <PrimaryButton onClick={() => setScreen("consent")}>
-                {t.continue} <ChevronRight className="h-5 w-5" />
-              </PrimaryButton>
+              <StickyBar>
+                <PrimaryButton onClick={() => setScreen("consent")}>
+                  {t.continue} <ChevronRight className="h-5 w-5" />
+                </PrimaryButton>
+              </StickyBar>
             </>
           )}
         </Page>
@@ -251,13 +253,15 @@ export default function InterviewApp({ code }: { code: string }) {
               </li>
             ))}
           </ul>
-          <label className="mt-8 flex cursor-pointer items-center gap-3 rounded-lg border border-navy-700 bg-navy-900 p-4 text-lg font-semibold">
-            <input type="checkbox" className="h-6 w-6 accent-teal-500" checked={agreed} onChange={(e) => setAgreed(e.target.checked)} />
-            {t.agree}
-          </label>
-          <PrimaryButton disabled={!agreed} onClick={giveConsent}>
-            {t.continue} <ChevronRight className="h-5 w-5" />
-          </PrimaryButton>
+          <StickyBar>
+            <label className="flex cursor-pointer items-center gap-3 rounded-lg border border-navy-700 bg-navy-900 p-4 text-lg font-semibold">
+              <input type="checkbox" className="h-6 w-6 accent-teal-500" checked={agreed} onChange={(e) => setAgreed(e.target.checked)} />
+              {t.agree}
+            </label>
+            <PrimaryButton disabled={!agreed} onClick={giveConsent}>
+              {t.continue} <ChevronRight className="h-5 w-5" />
+            </PrimaryButton>
+          </StickyBar>
         </Page>
       )}
 
@@ -270,13 +274,15 @@ export default function InterviewApp({ code }: { code: string }) {
               <p className="mt-3 text-base text-navy-100">{t.cameraHelp}</p>
               {camError && <p className="mt-4 rounded-lg bg-red-900/60 p-4 text-red-100">{camError === "dismissed" ? t.cameraDismissed : t.cameraDenied}</p>}
               {(camSlow || camError === "blocked") && <OpenInChrome code={code} text={t.noCameraQuestion} button={t.openInChromeButton} />}
-              <PrimaryButton onClick={askCamera}>
-                <Camera className="h-5 w-5" /> {t.allow}
-              </PrimaryButton>
+              <StickyBar>
+                <PrimaryButton onClick={askCamera}>
+                  <Camera className="h-5 w-5" /> {t.allow}
+                </PrimaryButton>
+              </StickyBar>
             </>
           ) : (
             <>
-              <SelfView stream={stream} className="mt-5 aspect-[3/4] w-full rounded-2xl" />
+              <SelfView stream={stream} className="mx-auto mt-5 aspect-[3/4] h-[36vh] rounded-2xl" />
               <p className="mt-4 text-base text-navy-100">{t.looksGood}</p>
               {!session && !sessionError && (
                 <p className="mt-4 flex items-center gap-2 text-sm text-navy-200">
@@ -288,20 +294,22 @@ export default function InterviewApp({ code }: { code: string }) {
                   {t.error}. <button className="underline" onClick={() => location.reload()}>{t.tryAgain}</button>
                 </p>
               )}
-              <PrimaryButton
-                onClick={() => {
-                  // Create and resume audio inside the tap itself: Samsung Internet
-                  // and some other browsers refuse to start audio any later.
-                  const Ctx = window.AudioContext || (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
-                  const ctx = new Ctx();
-                  ctx.resume().catch(() => {});
-                  storyLog(code, `start tapped, audio ${ctx.state}`);
-                  setAudioCtx(ctx);
-                  setScreen("interview");
-                }}
-              >
-                <Mic className="h-5 w-5" /> {t.start}
-              </PrimaryButton>
+              <StickyBar>
+                <PrimaryButton
+                  onClick={() => {
+                    // Create and resume audio inside the tap itself: Samsung Internet
+                    // and some other browsers refuse to start audio any later.
+                    const Ctx = window.AudioContext || (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
+                    const ctx = new Ctx();
+                    ctx.resume().catch(() => {});
+                    storyLog(code, `start tapped, audio ${ctx.state}`);
+                    setAudioCtx(ctx);
+                    setScreen("interview");
+                  }}
+                >
+                  <Mic className="h-5 w-5" /> {t.start}
+                </PrimaryButton>
+              </StickyBar>
             </>
           )}
         </Page>
@@ -730,7 +738,20 @@ function LangToggle({ lang, setLang }: { lang: Lang; setLang: (l: Lang) => void 
 }
 
 function Page({ children }: { children: React.ReactNode }) {
-  return <div className="mx-auto flex min-h-full max-w-lg flex-col px-5 pb-10 pt-6">{children}</div>;
+  // Extra bottom space so the fixed action bar never covers the last lines.
+  return <div className="mx-auto flex min-h-full max-w-lg flex-col px-5 pb-48 pt-6">{children}</div>;
+}
+
+/**
+ * Keeps the screen's main action pinned to the bottom of the phone: players
+ * on small screens were not scrolling down to find "Continue" or "Start".
+ */
+function StickyBar({ children }: { children: React.ReactNode }) {
+  return (
+    <div className="fixed inset-x-0 bottom-0 z-20 bg-gradient-to-t from-navy-950 via-navy-950 to-navy-950/80 px-5 pb-5 pt-3">
+      <div className="mx-auto max-w-lg [&>button]:mt-3">{children}</div>
+    </div>
+  );
 }
 
 function Centered({ children }: { children: React.ReactNode }) {
