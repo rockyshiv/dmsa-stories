@@ -25,6 +25,8 @@ export interface Media {
   folderUrl: string;
   files: { interview: MediaFile[]; uploads: MediaFile[]; dmsa: MediaFile[]; story: MediaFile[] };
   storyVideo: string;
+  /** What the story writer asked Shiva to check before sharing. */
+  needsCheck?: string[];
 }
 
 interface StoryPages {

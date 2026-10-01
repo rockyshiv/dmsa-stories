@@ -14,6 +14,7 @@ import {
   Home,
   Loader2,
   MessageCircle,
+  Pencil,
   Plus,
   RefreshCw,
   Search,
@@ -85,11 +86,21 @@ function isStuck(p: Player): boolean {
   return !isNaN(t) && Date.now() - t > 20 * 3600 * 1000;
 }
 
-type Filter = "all" | "notSent" | "waiting" | "started" | "finished" | "stuck";
+type Filter = "all" | "notSent" | "waiting" | "started" | "finished" | "stuck" | "details";
+
+/** A story was written but the details only Shiva knows are still empty. */
+function missingDetails(p: Player): string[] {
+  if (!p.pdfEnUrl) return [];
+  const out: string[] = [];
+  if (!String(p.pronoun || "").trim()) out.push("He/She");
+  if (!String(p.support || "").trim()) out.push("DMSA support received");
+  return out;
+}
 
 const FILTERS: { id: Filter; label: string; test: (p: Player) => boolean }[] = [
   { id: "all", label: "Everyone", test: () => true },
   { id: "stuck", label: "Needs a reminder", test: isStuck },
+  { id: "details", label: "Missing details", test: (p) => missingDetails(p).length > 0 },
   { id: "notSent", label: "Not invited", test: (p) => stageOf(p) === 0 },
   { id: "waiting", label: "Invited", test: (p) => stageOf(p) === 1 || stageOf(p) === 2 },
   { id: "started", label: "Started", test: (p) => stageOf(p) === 3 },
@@ -560,6 +571,14 @@ function HomeView({
       text: "They opened the link but haven't finished for a day or more.",
       onClick: () => go("players", "stuck"),
     });
+  if (counts.details)
+    todo.push({
+      tone: "gold",
+      icon: <Pencil className="h-5 w-5" />,
+      title: `${counts.details} ${counts.details === 1 ? "story is" : "stories are"} missing details only you know`,
+      text: "Add He/She and \"DMSA support received\", then update the story - it gets much better.",
+      onClick: () => go("players", "details"),
+    });
   if (counts.notSent)
     todo.push({
       tone: "navy",
@@ -837,12 +856,18 @@ function PlayerPage({
   const stuck = isStuck(player);
   const dirty = EDIT_FIELDS.some((f) => (draft[f.key] ?? "") !== String(player[f.key] ?? ""));
 
+  // Details the story uses: after changing them, offer to update the story.
+  const STORY_FIELDS = ["pronoun", "support", "achievements", "role", "joined", "hometown", "work", "disability", "name", "callname"];
+  const [storyStale, setStoryStale] = useState(false);
+
   const save = async () => {
     setSaving(true);
     try {
+      const touchesStory = STORY_FIELDS.some((k) => (draft[k] ?? "") !== String(player[k as keyof Player] ?? ""));
       const r = await storyAdmin<{ player: Player }>("update", adminKey, { id: player.id, fields: draft });
       onChange(r.player);
       toast("Changes saved");
+      if (touchesStory && player.pdfEnUrl) setStoryStale(true);
     } catch (e) {
       alert(String((e as Error)?.message || e));
     } finally {
@@ -850,9 +875,10 @@ function PlayerPage({
     }
   };
 
-  const story = async (lang: "en" | "kn") => {
+  const story = async (lang: "en" | "kn", thenKn = false) => {
     if (
       lang === "en" &&
+      !thenKn &&
       !confirm(
         `Create ${player.name}'s story? It takes about a minute.\n\nThe story's QR code links to their interview video, so that one video becomes viewable by anyone with the link (it is not listed or searchable).`,
       )
@@ -861,7 +887,8 @@ function PlayerPage({
     setWork(lang === "en" ? "Writing the story… about a minute. You can leave this page - it keeps going." : "Translating into Kannada… about a minute.");
     try {
       // Google writes it in the background; check back every few seconds.
-      await storyAdmin("storyStart", adminKey, { id: player.id, lang });
+      await storyAdmin("storyStart", adminKey, { id: player.id, lang, thenKn });
+      setStoryStale(false);
       type Job = { state: string; needsCheck?: string[]; error?: string; note?: string };
       const until = Date.now() + 12 * 60 * 1000;
       while (Date.now() < until) {
@@ -1022,6 +1049,35 @@ function PlayerPage({
               <input type="checkbox" className="h-5 w-5 accent-[var(--teal)]" checked={!!player.approved} onChange={(e) => approve(e.target.checked)} />
               {player.greet} has read and approved the story
             </label>
+            {media?.needsCheck && media.needsCheck.length > 0 && (
+              <div className="border-t border-[var(--line)] bg-[var(--gold-soft)] px-4 py-3 text-sm">
+                <p className="font-semibold text-[#7D5A1E]">Check before sharing</p>
+                <ul className="mt-1 list-disc space-y-0.5 pl-5">
+                  {media.needsCheck.map((x, i) => (
+                    <li key={i}>{x}</li>
+                  ))}
+                </ul>
+              </div>
+            )}
+            {(storyStale || missingDetails(player).length > 0) && !work && (
+              <div className="border-t border-[var(--line)] bg-[var(--teal-soft)] px-4 py-3 text-sm">
+                {storyStale ? (
+                  <p>You changed details the story uses.</p>
+                ) : (
+                  <p>
+                    Written without: <b>{missingDetails(player).join(" and ")}</b>. Add them in Player details below, then update the story.
+                  </p>
+                )}
+                {storyStale && (
+                  <button
+                    onClick={() => story("en", !!player.pdfKnUrl)}
+                    className="mt-2 flex items-center gap-2 rounded-lg bg-[var(--navy)] px-3.5 py-2.5 font-semibold text-white"
+                  >
+                    <Sparkles className="h-4 w-4" /> Update the story with these details
+                  </button>
+                )}
+              </div>
+            )}
             {!work && (
               <div className="flex flex-wrap gap-x-4 gap-y-2 border-t border-[var(--line)] px-4 py-3 text-sm">
                 <TextButton onClick={() => story("en")} label="Rewrite story" />
@@ -1070,7 +1126,9 @@ function PlayerPage({
           <button onClick={() => setShowDetails((v) => !v)} className="flex w-full items-center justify-between p-4 text-left" aria-expanded={showDetails}>
             <span>
               <span className="block font-heading text-[15px] font-bold">Player details</span>
-              <span className="block text-xs text-[var(--muted)]">Myithri and the story use these. {!player.support && "DMSA support is still empty."}</span>
+              <span className={`block text-xs ${missingDetails(player).length ? "font-semibold text-[var(--alert)]" : "text-[var(--muted)]"}`}>
+                {missingDetails(player).length ? `Missing: ${missingDetails(player).join(", ")}` : "Myithri and the story use these."}
+              </span>
             </span>
             <ChevronDown className={`h-5 w-5 transition ${showDetails ? "rotate-180" : ""}`} />
           </button>
