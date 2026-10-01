@@ -14,7 +14,6 @@ import {
   Home,
   Loader2,
   MessageCircle,
-  MessagesSquare,
   Plus,
   RefreshCw,
   Search,
@@ -22,7 +21,6 @@ import {
   Users,
 } from "lucide-react";
 import { storyAdmin, StoryApiError } from "@/lib/story/api";
-import { ConversationsView } from "@/components/AdminConversations";
 import { Conversation, interviewParts, PhotoGrid, StoriesView, StoryCover, StoryReader, useMedia, VideoBox } from "@/components/AdminMedia";
 
 const BASE = process.env.NEXT_PUBLIC_BASE_PATH || "";
@@ -158,13 +156,12 @@ export default function AdminApp() {
 
 // ---------- dashboard ----------
 
-type Section = "home" | "stories" | "players" | "talks";
+type Section = "home" | "stories" | "players";
 
 const NAV: { id: Section; label: string; icon: typeof Home }[] = [
   { id: "home", label: "Home", icon: Home },
   { id: "stories", label: "Stories", icon: BookOpen },
   { id: "players", label: "Players", icon: Users },
-  { id: "talks", label: "Conversations", icon: MessagesSquare },
 ];
 
 function Dashboard({ adminKey }: { adminKey: string }) {
@@ -301,8 +298,6 @@ function Dashboard({ adminKey }: { adminKey: string }) {
             />
           )}
 
-          {section === "talks" && <ConversationsView adminKey={adminKey} toast={showToast} />}
-
           {players && section === "players" && (
             <div className="lg:grid lg:h-dvh lg:grid-cols-[minmax(340px,420px)_1fr]">
               <div className="lg:flex lg:h-dvh lg:flex-col lg:overflow-hidden lg:border-r lg:border-[var(--line)]">
@@ -388,7 +383,7 @@ function Dashboard({ adminKey }: { adminKey: string }) {
 
       {/* bottom bar on phones */}
       <nav className="fixed inset-x-0 bottom-0 z-20 border-t border-[var(--line)] bg-[var(--surface)]/95 pb-[env(safe-area-inset-bottom)] backdrop-blur lg:hidden" aria-label="Main">
-        <ul className="grid grid-cols-4">
+        <ul className="grid grid-cols-3">
           {NAV.map((n) => (
             <li key={n.id}>
               <button
