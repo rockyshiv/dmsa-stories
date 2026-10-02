@@ -455,6 +455,7 @@ interface Health {
   status: "ok" | "warn" | "bad";
   checks: { level: "ok" | "warn" | "bad"; text: string }[];
   log: string[];
+  errors?: string[];
 }
 
 /** One line saying whether the automatic parts are working; tap for details. */
@@ -498,6 +499,16 @@ function SystemCheck({ adminKey }: { adminKey: string }) {
               </li>
             ))}
           </ul>
+          {h.errors && h.errors.length > 0 && (
+            <>
+              <p className="mt-4 text-[11px] font-bold uppercase tracking-[0.12em] text-[var(--alert)]">Recent problems</p>
+              <ul className="mt-1.5 space-y-1 font-mono text-[11px] leading-relaxed text-[var(--muted)]">
+                {h.errors.map((l, i) => (
+                  <li key={i}>{l}</li>
+                ))}
+              </ul>
+            </>
+          )}
           {h.log.length > 0 && (
             <>
               <p className="mt-4 text-[11px] font-bold uppercase tracking-[0.12em] text-[var(--muted)]">Recent automatic work</p>

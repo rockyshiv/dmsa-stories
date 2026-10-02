@@ -276,6 +276,7 @@ export class Interview {
         modelIndex: this.modelIndex,
         withHistory: needHistory || (this.continuing && !this.readyOnce),
         midCall: needHistory,
+        resuming,
         sessionId: this.sessionId,
       },
       // Google sometimes loses replies for a while: the first connection keeps
