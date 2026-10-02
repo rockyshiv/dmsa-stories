@@ -579,7 +579,7 @@ function HomeView({
       tone: "alert",
       icon: <BellRing className="h-5 w-5" />,
       title: `${counts.stuck} ${counts.stuck === 1 ? "player needs" : "players need"} a reminder`,
-      text: "They opened the link but haven't finished for a day or more.",
+      text: "They got the link but haven't finished the interview for a day or more. A friendly WhatsApp nudge usually helps.",
       onClick: () => go("players", "stuck"),
     });
   if (counts.details)
