@@ -122,7 +122,7 @@ export function ImpactCard({ adminKey, toast }: { adminKey: string; toast: (t: s
           onClick={() => report && setReading(true)}
           disabled={!report}
           aria-label="Read the impact report"
-          className="relative aspect-[1/1.414] w-24 flex-none overflow-hidden rounded-md bg-[var(--navy)] ring-1 ring-[var(--line)] sm:w-28"
+          className="relative aspect-[1/1.414] w-24 flex-none self-start overflow-hidden rounded-md bg-[var(--navy)] ring-1 ring-[var(--line)] sm:w-28"
         >
           {report?.pages[0] ? (
             <GImg src={report.pages[0]} alt="" className="h-full w-full object-cover object-top" />
