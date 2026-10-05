@@ -37,6 +37,10 @@ export interface InterviewOptions {
   endTool?: string;
   /** Myithri cannot end on her own before this many seconds (the player can). */
   minEndSeconds?: number;
+  /** Story-interview time reminders ("move to dreams and donors"). Off for other conversations. */
+  storyTimeNotes?: boolean;
+  /** Time reminders for other conversations: shortly before the end and when time is up. */
+  timeNotes?: { soon: string; over: string };
 }
 
 const RECORDER_TYPES = [
@@ -417,6 +421,20 @@ export class Interview {
     const s = this.elapsed;
     this.cb.onTick(s);
     const target = this.minutes * 60;
+    if (this.opts.storyTimeNotes === false) {
+      const notes = this.opts.timeNotes;
+      if (notes && !this.nudged.soon && s > target - 120) {
+        this.nudged.soon = true;
+        this.live.sendNote(notes.soon);
+      }
+      if (notes && !this.nudged.over && s > target + 120) {
+        this.nudged.over = true;
+        this.live.sendNote(notes.over);
+      }
+      if (s > 30 * 60 && !this.ending) this.finish();
+      if (this.dirty && Date.now() - this.lastSave > 30000) this.saveTranscript();
+      return;
+    }
     if (!this.nudged.half && !this.continuing && s > target * 0.35 && s < target * 0.6) {
       this.nudged.half = true;
       this.live.sendNote(
