@@ -24,6 +24,7 @@ import {
 } from "lucide-react";
 import { storyAdmin, StoryApiError } from "@/lib/story/api";
 import { ConversationsView } from "@/components/AdminConversations";
+import { ImpactCard } from "@/components/AdminImpact";
 import { Conversation, interviewParts, PhotoGrid, StoriesView, StoryCover, StoryReader, useMedia, VideoBox } from "@/components/AdminMedia";
 
 const BASE = process.env.NEXT_PUBLIC_BASE_PATH || "";
@@ -305,6 +306,7 @@ function Dashboard({ adminKey }: { adminKey: string }) {
               adminKey={adminKey}
               players={players}
               onRead={setReading}
+              top={<ImpactCard adminKey={adminKey} toast={showToast} />}
               onOpenPlayer={(p) => {
                 go("players");
                 setOpenId(p.id);

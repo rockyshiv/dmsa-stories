@@ -282,7 +282,7 @@ async function pdfFile(adminKey: string, playerId: string, fileId: string) {
   return new File([bytes], r.name, { type: r.mime || "application/pdf" });
 }
 
-function download(file: File) {
+export function download(file: File) {
   const url = URL.createObjectURL(file);
   const a = document.createElement("a");
   a.href = url;
@@ -452,11 +452,14 @@ export function StoriesView({
   players,
   onRead,
   onOpenPlayer,
+  top,
 }: {
   adminKey: string;
   players: Player[];
   onRead: (p: Player) => void;
   onOpenPlayer: (p: Player) => void;
+  /** Shown under the heading (the impact report card). */
+  top?: React.ReactNode;
 }) {
   const withStory = useMemo(
     () => players.filter((p) => p.pdfEnUrl).sort((a, b) => Number(!!a.approved) - Number(!!b.approved) || String(b.updated).localeCompare(String(a.updated))),
@@ -470,6 +473,7 @@ export function StoriesView({
       <p className="mt-1 text-[15px] text-[var(--muted)]">
         {withStory.length ? `${withStory.length} ${withStory.length === 1 ? "story" : "stories"} written. Tap one to read or share it.` : "No stories yet. They appear here once an interview is done."}
       </p>
+      {top}
 
       {withStory.length > 0 && (
         <ul className="mt-5 grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4">
