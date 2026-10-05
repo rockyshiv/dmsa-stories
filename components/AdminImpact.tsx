@@ -81,7 +81,9 @@ export function ImpactCard({ adminKey, toast }: { adminKey: string; toast: (t: s
   const start = async () => {
     setStarting(true);
     try {
-      const s = await storyAdmin<ImpactStatus>("impactStart", adminKey, { names }, 60000);
+      // Only names/photos switched on or off: the pages are just laid out again (about a minute).
+      const layoutOnly = !!status?.report && names !== status.report.names && status.stories === status.report.players;
+      const s = await storyAdmin<ImpactStatus>("impactStart", adminKey, { names, layoutOnly }, 60000);
       wasBusy.current = true;
       setStatus((old) => ({ ...s, report: s.report ? { ...s.report, pages: old?.report?.pages || [] } : null }));
     } catch (e) {
@@ -153,7 +155,9 @@ export function ImpactCard({ adminKey, toast }: { adminKey: string; toast: (t: s
               <Loader2 className="mt-0.5 h-4 w-4 flex-none animate-spin text-[var(--teal)]" />
               <span>
                 <span className="font-semibold">{job?.note || "Working"}...</span>
-                <span className="block text-[var(--muted)]">This takes about 5 minutes. You can leave this page; it carries on.</span>
+                <span className="block text-[var(--muted)]">
+                  This takes about {job?.lang === "impactLayout" ? "a minute or two" : "5 minutes"}. You can leave this page; it carries on.
+                </span>
               </span>
             </div>
           ) : (
