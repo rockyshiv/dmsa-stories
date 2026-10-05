@@ -232,7 +232,10 @@ export class Interview {
       onMaitriText: (t) => this.addText("maitri", t),
       onPlayerText: (t) => this.addText("player", t),
       onTurnComplete: () => {
-        if (this.openLine?.who === "maitri") this.openLine = null;
+        if (this.openLine?.who === "maitri") {
+          this.watchGoodbye(this.openLine.text);
+          this.openLine = null;
+        }
       },
       onTool: (name, args) => this.tool(name, args),
       onFatal: (m) => {
@@ -344,7 +347,37 @@ export class Interview {
     this.audioRecorder.start(5000);
   }
 
+  private goodbyeTimer: ReturnType<typeof setTimeout> | null = null;
+
+  /**
+   * Myithri sometimes says goodbye but forgets to call end_interview, leaving
+   * the person on a silent call. If her turn ended with a goodbye and nobody
+   * speaks for a few seconds after her voice stops, finish for her.
+   */
+  private watchGoodbye(text: string) {
+    if (this.goodbyeTimer) clearTimeout(this.goodbyeTimer);
+    this.goodbyeTimer = null;
+    if (this.ending || !/\b(good ?bye|bye)\b|ಬೈ|ಹೋಗಿ ಬನ್ನಿ|ವಿದಾಯ/i.test(text.slice(-160))) return;
+    if (!this.endRequested && this.elapsed < this.minEnd) return;
+    const check = (quiet: number) => {
+      this.goodbyeTimer = setTimeout(() => {
+        if (this.ending) return;
+        if (this.speaking) return check(0);
+        if (quiet < 8) return check(quiet + 1);
+        this.log(`goodbye without end_interview at ${Math.round(this.elapsed)}s - finishing`);
+        this.completed = this.endRequested ? false : this.elapsed >= this.minutes * 60 * 0.5;
+        this.finish();
+      }, 1000);
+    };
+    check(0);
+  }
+
   private addText(who: Line["who"], text: string) {
+    // Anyone speaking again means the conversation is not over.
+    if (this.goodbyeTimer) {
+      clearTimeout(this.goodbyeTimer);
+      this.goodbyeTimer = null;
+    }
     if (who === "maitri" && this.openLine?.who === "player") this.openLine = null;
     if (who === "player" && this.openLine?.who === "maitri") this.openLine = null;
     if (!this.openLine) {
