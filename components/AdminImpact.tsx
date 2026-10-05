@@ -199,7 +199,7 @@ export function ImpactCard({
                 }`}
               >
                 {starting ? <Loader2 className="h-4 w-4 animate-spin" /> : report ? <RefreshCw className="h-4 w-4" /> : <BarChart3 className="h-4 w-4" />}
-                {report ? "Update" : "Make the impact report"}
+                {report ? "Update" : conv ? "Make the report" : "Make the impact report"}
               </button>
             </div>
           )}
