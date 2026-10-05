@@ -25,6 +25,7 @@ import {
   Sparkles,
   Users,
 } from "lucide-react";
+import { ImpactCard } from "@/components/AdminImpact";
 import { storyAdmin } from "@/lib/story/api";
 import { parseConversation, type Line } from "@/components/AdminMedia";
 
@@ -666,6 +667,9 @@ function ConvDetail({
           </div>
 
           {tab === "people" && <PeopleList conv={c} onOpen={onOpen} />}
+          {tab === "insights" && !c.cfg.evaluate && (
+            <ImpactCard adminKey={adminKey} toast={toast} conv={c.id} forFunders={c.cfg.type === "beneficiary"} className="" />
+          )}
           {tab === "insights" && <InsightsPanel adminKey={adminKey} conv={c} toast={toast} />}
 
           <section className="rounded-2xl border border-[var(--line)] bg-[var(--surface)] p-4">

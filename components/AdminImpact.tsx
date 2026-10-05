@@ -6,9 +6,10 @@ import { storyAdmin } from "@/lib/story/api";
 import { download, GImg } from "@/components/AdminMedia";
 
 /**
- * The impact report: one PDF for donors and CSR partners, made from every
- * finished story (Impact.gs). It takes a few minutes, so it is made in the
- * background and this card checks back.
+ * The impact report: one PDF for donors, CSR partners and the team, made from
+ * every finished story - or, with `conv`, from one brief's conversations
+ * (Impact.gs). It takes a few minutes, so it is made in the background and
+ * this card checks back.
  */
 
 interface ImpactJob {
@@ -37,16 +38,33 @@ interface ImpactStatus {
 
 const busy = (j: ImpactJob | null) => !!j && (j.state === "queued" || j.state === "writing");
 
-async function reportPdf(adminKey: string) {
-  const r = await storyAdmin<{ name: string; mime: string; data: string }>("impactPdf", adminKey, {}, 120000);
+async function reportPdf(adminKey: string, conv?: string) {
+  const r = await storyAdmin<{ name: string; mime: string; data: string }>("impactPdf", adminKey, { conv }, 120000);
   const bytes = Uint8Array.from(atob(r.data), (c) => c.charCodeAt(0));
   return new File([bytes], r.name, { type: "application/pdf" });
 }
 
-export function ImpactCard({ adminKey, toast }: { adminKey: string; toast: (t: string) => void }) {
+export function ImpactCard({
+  adminKey,
+  toast,
+  conv,
+  forFunders = true,
+  className = "mt-5",
+}: {
+  adminKey: string;
+  toast: (t: string) => void;
+  /** A brief's id: the report is made from its conversations. */
+  conv?: string;
+  /** Beneficiary feedback (and the player stories) are for funders; other briefs for the team. */
+  forFunders?: boolean;
+  className?: string;
+}) {
   const [status, setStatus] = useState<ImpactStatus | null>(null);
   const [error, setError] = useState("");
-  const [names, setNames] = useState(true);
+  // People giving feedback are kept anonymous unless Shiva chooses otherwise.
+  const [names, setNames] = useState(!conv);
+  const unit = conv ? "conversation" : "story";
+  const units = conv ? "conversations" : "stories";
   const [starting, setStarting] = useState(false);
   const [reading, setReading] = useState(false);
   const wasBusy = useRef(false);
@@ -56,16 +74,16 @@ export function ImpactCard({ adminKey, toast }: { adminKey: string; toast: (t: s
 
   const load = useCallback(async () => {
     try {
-      const s = await storyAdmin<ImpactStatus>("impactStatus", adminKey, { pages: "first" }, 90000);
+      const s = await storyAdmin<ImpactStatus>("impactStatus", adminKey, { pages: "first", conv }, 90000);
       setStatus(s);
       setError("");
       if (s.report) setNames(s.report.names !== false);
-      if (wasBusy.current && !busy(s.job) && s.job?.state === "done") toastRef.current("Impact report ready");
+      if (wasBusy.current && !busy(s.job) && s.job?.state === "done") toastRef.current("Report ready");
       wasBusy.current = busy(s.job);
     } catch (e) {
       setError(String((e as Error)?.message || e));
     }
-  }, [adminKey]);
+  }, [adminKey, conv]);
 
   useEffect(() => {
     load();
@@ -83,7 +101,7 @@ export function ImpactCard({ adminKey, toast }: { adminKey: string; toast: (t: s
     try {
       // Only names/photos switched on or off: the pages are just laid out again (about a minute).
       const layoutOnly = !!status?.report && names !== status.report.names && status.stories === status.report.players;
-      const s = await storyAdmin<ImpactStatus>("impactStart", adminKey, { names, layoutOnly }, 60000);
+      const s = await storyAdmin<ImpactStatus>("impactStart", adminKey, { names, layoutOnly, conv }, 60000);
       wasBusy.current = true;
       setStatus((old) => ({ ...s, report: s.report ? { ...s.report, pages: old?.report?.pages || [] } : null }));
     } catch (e) {
@@ -95,17 +113,17 @@ export function ImpactCard({ adminKey, toast }: { adminKey: string; toast: (t: s
 
   if (!status) {
     return (
-      <section className="mt-5 flex items-center gap-3 rounded-2xl border border-[var(--line)] bg-[var(--surface)] p-5 text-sm text-[var(--muted)]">
+      <section className={`${className} flex items-center gap-3 rounded-2xl border border-[var(--line)] bg-[var(--surface)] p-5 text-sm text-[var(--muted)]`}>
         {error ? (
           <>
-            <AlertTriangle className="h-5 w-5 flex-none text-[var(--alert)]" /> Couldn&apos;t check the impact report.
+            <AlertTriangle className="h-5 w-5 flex-none text-[var(--alert)]" /> Couldn&apos;t check the report.
             <button onClick={load} className="ml-auto font-semibold text-[var(--teal)]">
               Try again
             </button>
           </>
         ) : (
           <>
-            <Loader2 className="h-5 w-5 animate-spin" /> Checking the impact report...
+            <Loader2 className="h-5 w-5 animate-spin" /> Checking the report...
           </>
         )}
       </section>
@@ -118,12 +136,12 @@ export function ImpactCard({ adminKey, toast }: { adminKey: string; toast: (t: s
   const when = report ? new Date(report.at).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" }) : "";
 
   return (
-    <section className="mt-5 overflow-hidden rounded-2xl border border-[var(--line)] bg-[var(--surface)] shadow-[0_18px_40px_-28px_rgba(11,31,68,0.55)]">
+    <section className={`${className} overflow-hidden rounded-2xl border border-[var(--line)] bg-[var(--surface)] shadow-[0_18px_40px_-28px_rgba(11,31,68,0.55)]`}>
       <div className="flex gap-4 p-5">
         <button
           onClick={() => report && setReading(true)}
           disabled={!report}
-          aria-label="Read the impact report"
+          aria-label="Read the report"
           className="relative aspect-[1/1.414] w-24 flex-none self-start overflow-hidden rounded-md bg-[var(--navy)] ring-1 ring-[var(--line)] sm:w-28"
         >
           {report?.pages[0] ? (
@@ -133,20 +151,26 @@ export function ImpactCard({ adminKey, toast }: { adminKey: string; toast: (t: s
           )}
         </button>
         <div className="min-w-0 flex-1">
-          <p className="text-xs font-bold uppercase tracking-wide text-[var(--teal)]">For donors and CSR partners</p>
-          <h2 className="mt-0.5 font-heading text-lg font-bold">Impact report</h2>
+          <p className="text-xs font-bold uppercase tracking-wide text-[var(--teal)]">
+            {conv ? (forFunders ? "For funders and your team" : "For your team") : "For donors and CSR partners"}
+          </p>
+          <h2 className="mt-0.5 font-heading text-lg font-bold">{conv && !forFunders ? "Feedback report" : "Impact report"}</h2>
           {report ? (
             <p className="mt-1 text-sm text-[var(--muted)]">
-              Made from {report.players} stories · {when}
+              Made from {report.players} {report.players === 1 ? unit : units} · {when}
               {newStories > 0 && !working && (
                 <span className="mt-1 block font-semibold text-[#7D5A1E]">
-                  {newStories} new {newStories === 1 ? "story" : "stories"} since. Update it to include them.
+                  {newStories} new {newStories === 1 ? unit : units} since. Update it to include them.
                 </span>
               )}
             </p>
           ) : (
             <p className="mt-1 text-sm text-[var(--muted)]">
-              One PDF from all {stories} stories: what changed for your players, in numbers anyone can check and in their own words.
+              {stories < 3
+                ? `Needs at least 3 finished ${units} (${stories} so far).`
+                : conv
+                  ? `One PDF from all ${stories} ${units}: what people said, in numbers anyone can check and in their own words.`
+                  : `One PDF from all ${stories} ${units}: what changed for your players, in numbers anyone can check and in their own words.`}
             </p>
           )}
 
@@ -182,7 +206,7 @@ export function ImpactCard({ adminKey, toast }: { adminKey: string; toast: (t: s
           {!working && (
             <label className="mt-3 flex items-center gap-2 text-sm text-[var(--muted)]">
               <input type="checkbox" checked={names} onChange={(e) => setNames(e.target.checked)} className="h-4 w-4 accent-[var(--teal)]" />
-              Show players&apos; names and photos{report && names !== report.names ? " (tap Update to apply)" : ""}
+              {conv ? "Show people's names" : "Show players' names and photos"}{report && names !== report.names ? " (tap Update to apply)" : ""}
             </label>
           )}
         </div>
@@ -205,24 +229,36 @@ export function ImpactCard({ adminKey, toast }: { adminKey: string; toast: (t: s
         </details>
       )}
 
-      {reading && report && <ImpactReader adminKey={adminKey} report={report} onClose={() => setReading(false)} toast={toast} />}
+      {reading && report && <ImpactReader adminKey={adminKey} conv={conv} report={report} onClose={() => setReading(false)} toast={toast} />}
     </section>
   );
 }
 
-function ImpactReader({ adminKey, report, onClose, toast }: { adminKey: string; report: ImpactReport; onClose: () => void; toast: (t: string) => void }) {
+function ImpactReader({
+  adminKey,
+  conv,
+  report,
+  onClose,
+  toast,
+}: {
+  adminKey: string;
+  conv?: string;
+  report: ImpactReport;
+  onClose: () => void;
+  toast: (t: string) => void;
+}) {
   const [pages, setPages] = useState<string[] | null>(null);
   const [work, setWork] = useState("");
 
   useEffect(() => {
     let alive = true;
-    storyAdmin<ImpactStatus>("impactStatus", adminKey, { pages: "all" }, 120000)
+    storyAdmin<ImpactStatus>("impactStatus", adminKey, { pages: "all", conv }, 120000)
       .then((s) => alive && setPages(s.report?.pages || []))
       .catch(() => alive && setPages([]));
     return () => {
       alive = false;
     };
-  }, [adminKey]);
+  }, [adminKey, conv]);
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => e.key === "Escape" && onClose();
@@ -233,7 +269,7 @@ function ImpactReader({ adminKey, report, onClose, toast }: { adminKey: string; 
   const share = async () => {
     setWork("share");
     try {
-      const file = await reportPdf(adminKey);
+      const file = await reportPdf(adminKey, conv);
       if (navigator.canShare?.({ files: [file] })) {
         await navigator.share({ files: [file], title: file.name.replace(/\.pdf$/, "") }).catch(() => {});
       } else {
@@ -250,7 +286,7 @@ function ImpactReader({ adminKey, report, onClose, toast }: { adminKey: string; 
   const save = async () => {
     setWork("download");
     try {
-      download(await reportPdf(adminKey));
+      download(await reportPdf(adminKey, conv));
       toast("PDF downloaded");
     } catch (e) {
       alert(String((e as Error)?.message || e));
@@ -260,14 +296,16 @@ function ImpactReader({ adminKey, report, onClose, toast }: { adminKey: string; 
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex flex-col bg-[#1b2433]" role="dialog" aria-modal="true" aria-label="Impact report">
+    <div className="fixed inset-0 z-50 flex flex-col bg-[#1b2433]" role="dialog" aria-modal="true" aria-label="Report">
       <header className="flex items-center gap-3 bg-[var(--navy)] px-3 py-2.5 text-white">
         <button onClick={onClose} aria-label="Close report" className="rounded-full bg-white/10 p-2.5 hover:bg-white/20">
           <ArrowLeft className="h-5 w-5" />
         </button>
         <div className="min-w-0 flex-1">
-          <p className="truncate font-heading text-[16px] font-bold leading-tight">Impact report</p>
-          <p className="text-xs text-white/60">Made from {report.players} stories</p>
+          <p className="truncate font-heading text-[16px] font-bold leading-tight">{report.pdf.name.replace(/\.pdf$/, "")}</p>
+          <p className="text-xs text-white/60">
+            Made from {report.players} {conv ? "conversations" : "stories"}
+          </p>
         </div>
       </header>
 
