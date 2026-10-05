@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { Camera, Check, ChevronRight, Loader2, Mic, RotateCcw } from "lucide-react";
 import { flushStoryLog, storyApi, storyLog } from "@/lib/story/api";
-import { STRINGS, type Lang } from "@/lib/story/i18n";
+import { MYITHRI_NAME, STRINGS, type Lang } from "@/lib/story/i18n";
 import { getCameraAndMic, getMicOnly, unlockAudio } from "@/lib/story/interview";
 import MyithriFace from "@/components/MyithriFace";
 import {
@@ -34,10 +34,10 @@ interface Info {
   type: string;
   intro: string;
   minutes: number;
-  language: "kn" | "en" | "choose";
+  language: "kn" | "en" | "hi" | "choose";
   recording: "voice" | "video";
   askPhone: boolean;
-  consent: { en: string[]; kn: string[] };
+  consent: Record<Lang, string[]>;
   liveModels: number;
 }
 
@@ -116,6 +116,42 @@ const T = {
       keepOpen: "ಮೈತ್ರಿ ಜೊತೆ ಮಾತನಾಡುವಾಗ ಈ ಪರದೆ ತೆರೆದಿಡಿ.",
     },
   },
+  hi: {
+    nameLabel: "आपका नाम",
+    namePlaceholder: "अपना पूरा नाम लिखें",
+    phoneLabel: "आपका फ़ोन नंबर",
+    phoneOptional: "(ज़रूरी नहीं)",
+    phonePlaceholder: "10 अंकों का मोबाइल नंबर",
+    minutes: (m: number) => `लगभग ${m} मिनट`,
+    voiceOnly: "सिर्फ़ आवाज़ - वीडियो नहीं",
+    withVideo: "वीडियो पर",
+    start: "आगे बढ़ें",
+    welcomeBack: (n: string) => `फिर से स्वागत है, ${n}! जहाँ रुके थे, वहीं से आगे बढ़ सकते हैं।`,
+    consentTitle: "शुरू करने से पहले",
+    micTitle: "माइक",
+    micHelp: "आपका फ़ोन माइक की अनुमति माँगेगा। Allow चुनें ताकि मैत्री आपको सुन सकें।",
+    allowMic: "माइक की अनुमति दें",
+    cameraHelp: "आपका फ़ोन कैमरा और माइक की अनुमति माँगेगा। Allow चुनें ताकि मैत्री आपको सुन सकें और बातचीत रिकॉर्ड हो सके।",
+    ready: "सब तैयार है। किसी शांत जगह बैठकर शुरू करें।",
+    talk: "मैत्री से बात शुरू करें",
+    thanksTitle: (n: string) => `धन्यवाद${n ? ", " + n : ""}!`,
+    thanks: "आपके जवाब सेव हो गए हैं। आपके समय के लिए बहुत धन्यवाद।",
+    doneBefore: "आप पहले ही हिस्सा ले चुके हैं। धन्यवाद!",
+    again: "फिर से हिस्सा लें",
+    closed: "यह बातचीत अब बंद है। आपकी रुचि के लिए धन्यवाद।",
+    badLink: "यह लिंक सही नहीं है। कृपया आपको भेजा गया लिंक देखें।",
+    needName: "कृपया अपना नाम लिखें।",
+    needPhone: "कृपया 10 अंकों का फ़ोन नंबर लिखें।",
+    role: (type: string) => (type === "interview" ? "DMSA की AI इंटरव्यूअर" : "DMSA की AI स्वयंसेवक"),
+    copy: {
+      saving: "आपकी बातचीत सेव हो रही है…",
+      savingHelp: "कृपया यह पेज खुला रखें। कुछ ही सेकंड लगेंगे।",
+      savedFail: "रिकॉर्डिंग का कुछ हिस्सा सेव नहीं हो सका, पर आपके जवाब सुरक्षित हैं। इंटरनेट देखें और Retry दबाएँ।",
+      endConfirm: "क्या अभी बातचीत ख़त्म करनी है?",
+      yesEnd: "हाँ, ख़त्म करें",
+      keepOpen: "मैत्री से बात करते समय यह स्क्रीन खुली रखें।",
+    },
+  },
 };
 
 const storeKey = (code: string) => `dmsa_conv_${code}`;
@@ -162,9 +198,11 @@ export default function ConversationApp({ code }: { code: string }) {
       try {
         const i = await storyApi<Info & { ok: boolean }>("convInfo", { code }, 4, 60000);
         if (!alive) return;
+        // Older replies have no Hindi consent: show English rather than nothing.
+        i.consent = { ...i.consent, hi: i.consent.hi || i.consent.en };
         setInfo(i);
         document.title = `${i.name} | DMSA`;
-        if (i.language === "kn" || i.language === "en") setLang(i.language);
+        if (i.language === "kn" || i.language === "en" || i.language === "hi") setLang(i.language);
         if (!i.open) return setScreen("closed");
         const saved = readSaved(code);
         if (saved) {
@@ -250,7 +288,7 @@ export default function ConversationApp({ code }: { code: string }) {
   const firstName = (resp?.name || name).split(" ")[0];
 
   return (
-    <div data-story-root className="fixed inset-0 z-[1000] overflow-y-auto bg-navy-950 font-sans text-white" lang={lang === "kn" ? "kn" : "en"}>
+    <div data-story-root className="fixed inset-0 z-[1000] overflow-y-auto bg-navy-950 font-sans text-white" lang={lang}>
       {screen === "loading" && (
         <Centered>
           <Logo />
@@ -279,14 +317,14 @@ export default function ConversationApp({ code }: { code: string }) {
         <Page>
           <div className="flex items-center justify-between">
             <Logo />
-            {info.language === "choose" && <LangToggle lang={lang} setLang={setLang} />}
+            {info.language === "choose" && <LangToggle lang={lang} setLang={setLang} langs={["en", "hi", "kn"]} />}
           </div>
           {inAppBrowser() && <OpenInChrome code={logId} text={t.openInChrome} button={t.openInChromeButton} />}
           <h1 className="mt-8 font-display text-5xl leading-none tracking-wide text-white">{info.name}</h1>
           <div className="mt-6 flex items-center gap-3">
             <MyithriFace className="h-16 w-16 flex-none rounded-full bg-[#f3ece4] ring-2 ring-white/20" />
             <div>
-              <p className="font-heading text-lg font-bold leading-tight">{lang === "kn" ? "ಮೈತ್ರಿ" : "Myithri"}</p>
+              <p className="font-heading text-lg font-bold leading-tight">{MYITHRI_NAME[lang]}</p>
               <p className="text-sm text-teal-200">{c.role(info.type)}</p>
             </div>
           </div>

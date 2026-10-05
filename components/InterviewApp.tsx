@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { BatteryCharging, Camera, Check, ChevronRight, Clock, ImagePlus, Loader2, Mic, Pause, Play, SkipForward, Smartphone, Square, Sun, Volume2, Wifi } from "lucide-react";
 import { flushStoryLog, storyApi, StoryApiError, storyLog } from "@/lib/story/api";
-import { STRINGS, type Lang } from "@/lib/story/i18n";
+import { MYITHRI_NAME, STRINGS, type Lang } from "@/lib/story/i18n";
 import { getCameraAndMic, getMicOnly, Interview, unlockAudio, type InterviewOptions } from "@/lib/story/interview";
 import { uploadFile } from "@/lib/story/upload";
 import MyithriFace from "@/components/MyithriFace";
@@ -595,7 +595,7 @@ export function InterviewScreen({
             className={`relative rounded-full bg-[#f3ece4] shadow-2xl shadow-teal-900/50 ring-2 ring-white/20 ${compact ? "h-20 w-20" : "h-32 w-32"}`}
           />
         </div>
-        <p className="mt-3 font-heading text-xl font-bold">{lang === "kn" ? "ಮೈತ್ರಿ" : "Myithri"}</p>
+        <p className="mt-3 font-heading text-xl font-bold">{MYITHRI_NAME[lang]}</p>
         <p className="text-sm text-teal-200">{t.maitriRole}</p>
       </div>
 
@@ -820,10 +820,10 @@ export function Logo() {
   );
 }
 
-export function LangToggle({ lang, setLang }: { lang: Lang; setLang: (l: Lang) => void }) {
+export function LangToggle({ lang, setLang, langs = ["kn", "en"] }: { lang: Lang; setLang: (l: Lang) => void; langs?: Lang[] }) {
   return (
     <div className="flex rounded-full bg-white/10 p-1 text-sm font-semibold" role="group" aria-label="Language">
-      {(["kn", "en"] as Lang[]).map((l) => (
+      {langs.map((l) => (
         <button
           key={l}
           onClick={() => setLang(l)}

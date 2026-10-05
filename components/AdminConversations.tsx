@@ -48,7 +48,7 @@ interface Cfg {
   criteria: string[];
   notes: string;
   minutes: number;
-  language: "kn" | "en" | "choose";
+  language: "kn" | "en" | "hi" | "choose";
   recording: "voice" | "video";
   askPhone: boolean;
   style: "warm" | "professional";
@@ -442,9 +442,10 @@ function Builder({ adminKey, existing, onBack, onSaved }: { adminKey: string; ex
                 <label className="block">
                   <span className="text-[13px] font-semibold">Language</span>
                   <select className={input} value={f.language || "choose"} onChange={(e) => set("language", e.target.value)}>
-                    <option value="choose">They choose Kannada or English</option>
-                    <option value="kn">Kannada</option>
+                    <option value="choose">They choose English, Hindi or Kannada</option>
                     <option value="en">English</option>
+                    <option value="hi">Hindi</option>
+                    <option value="kn">Kannada</option>
                   </select>
                 </label>
                 <label className="block">
