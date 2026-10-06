@@ -95,7 +95,7 @@ interface Resp {
   analysis: Analysis | null;
 }
 
-interface Conv {
+export interface Conv {
   id: string;
   name: string;
   type: string;
@@ -120,6 +120,7 @@ interface Insights {
   people: number;
 }
 
+export type BriefView = View;
 type View = { kind: "list" } | { kind: "new" } | { kind: "edit"; conv: Conv } | { kind: "conv"; id: string } | { kind: "resp"; convId: string; respId: string };
 
 const TYPE_ICON: Record<string, typeof Users> = { beneficiary: HeartHandshake, volunteer: Users, viewer: Eye, interview: Briefcase, custom: MessagesSquare };
@@ -139,8 +140,9 @@ function when(iso: string) {
   return isNaN(+d) ? "" : d.toLocaleString("en-IN", { day: "numeric", month: "short", hour: "numeric", minute: "2-digit" });
 }
 
-export function ConversationsView({ adminKey, toast }: { adminKey: string; toast: (t: string) => void }) {
-  const [view, setView] = useState<View>({ kind: "list" });
+export function ConversationsView({ adminKey, toast, start }: { adminKey: string; toast: (t: string) => void; start?: View }) {
+  // `start` opens a brief, a person or the builder straight away (links from Home and People).
+  const [view, setView] = useState<View>(start || { kind: "list" });
   const go = (v: View) => {
     setView(v);
     document.querySelector("[data-admin-main]")?.scrollTo(0, 0);

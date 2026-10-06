@@ -3,27 +3,30 @@
 import { useCallback, useEffect, useMemo, useState, useSyncExternalStore } from "react";
 import {
   ArrowLeft,
-  BellRing,
   BookOpen,
+  Building2,
   Check,
   ChevronDown,
-  ChevronRight,
+  ChevronsUpDown,
   Copy,
+  FileText,
   FolderOpen,
-  HeartPulse,
   Home,
   Loader2,
   MessageCircle,
   MessagesSquare,
-  Pencil,
   Plus,
   RefreshCw,
   Search,
+  Settings,
   Sparkles,
   Users,
 } from "lucide-react";
 import { storyAdmin, StoryApiError } from "@/lib/story/api";
-import { ConversationsView } from "@/components/AdminConversations";
+import { isStuck, missingDetails, stageOf, STATUS_WORDS, ago } from "@/lib/story/players";
+import { ConversationsView, type BriefView, type Conv } from "@/components/AdminConversations";
+import { HomeView, NewMenu, PageHeader, PeopleView, ReportsView, SettingsView, needsFollowUp } from "@/components/AdminHome";
+import type { Go, OrgInfo, PeopleFilter, Person, PlayerFilter, Section } from "@/components/AdminHome";
 import { ImpactCard } from "@/components/AdminImpact";
 import { Conversation, interviewParts, PhotoGrid, StoriesView, StoryCover, StoryReader, useMedia, VideoBox } from "@/components/AdminMedia";
 
@@ -66,39 +69,7 @@ export interface Player {
 
 const STAGES = ["Invited", "Opened", "Agreed", "Interviewed", "Story", "Approved"] as const;
 
-/** Where a player is, in words. */
-const STATUS_WORDS = ["Not invited yet", "Invited", "Opened the link", "Started the interview", "Interview done", "Story ready", "Story approved"];
-
-/** How many of the six stages this player has completed (0-6). */
-function stageOf(p: Pick<Player, "status" | "approved">): number {
-  const s = String(p.status || "");
-  if (p.approved || /^Approved/.test(s)) return 6;
-  if (/^Story|^Kannada/.test(s)) return 5;
-  if (/^Interview done/.test(s)) return 4;
-  if (/^Consent|in progress|incomplete/i.test(s)) return 3;
-  if (/^Opened/.test(s)) return 2;
-  if (/^Link sent/.test(s)) return 1;
-  return 0;
-}
-
-/** Started but not finished, and nothing has happened for a day: worth a nudge. */
-function isStuck(p: Player): boolean {
-  const st = stageOf(p);
-  if (st < 1 || st > 3) return false;
-  const t = Date.parse(p.updated);
-  return !isNaN(t) && Date.now() - t > 20 * 3600 * 1000;
-}
-
-type Filter = "all" | "notSent" | "waiting" | "started" | "finished" | "stuck" | "details";
-
-/** A story was written but the details only Shiva knows are still empty. */
-function missingDetails(p: Player): string[] {
-  if (!p.pdfEnUrl) return [];
-  const out: string[] = [];
-  if (!String(p.pronoun || "").trim()) out.push("He/She");
-  if (!String(p.support || "").trim()) out.push("DMSA support received");
-  return out;
-}
+type Filter = PlayerFilter;
 
 const FILTERS: { id: Filter; label: string; test: (p: Player) => boolean }[] = [
   { id: "all", label: "Everyone", test: () => true },
@@ -109,16 +80,6 @@ const FILTERS: { id: Filter; label: string; test: (p: Player) => boolean }[] = [
   { id: "started", label: "Started", test: (p) => stageOf(p) === 3 },
   { id: "finished", label: "Interview done", test: (p) => stageOf(p) >= 4 },
 ];
-
-function ago(iso: string): string {
-  const t = Date.parse(iso);
-  if (isNaN(t)) return "";
-  const m = Math.round((Date.now() - t) / 60000);
-  if (m < 60) return `${Math.max(1, m)} min ago`;
-  const h = Math.round(m / 60);
-  if (h < 36) return `${h} h ago`;
-  return `${Math.round(h / 24)} days ago`;
-}
 
 // ---------- private key from the app link ----------
 
@@ -170,17 +131,22 @@ export default function AdminApp() {
 
 // ---------- dashboard ----------
 
-type Section = "home" | "stories" | "players" | "talks";
-
 const NAV: { id: Section; label: string; icon: typeof Home }[] = [
   { id: "home", label: "Home", icon: Home },
+  { id: "briefs", label: "Briefs", icon: MessagesSquare },
   { id: "stories", label: "Stories", icon: BookOpen },
-  { id: "players", label: "Players", icon: Users },
-  { id: "talks", label: "Briefs", icon: MessagesSquare },
+  { id: "people", label: "People", icon: Users },
+  { id: "reports", label: "Reports", icon: FileText },
 ];
+const ALL_SECTIONS: Section[] = ["home", "briefs", "stories", "people", "reports", "settings"];
+/** Sections were renamed in the October 2026 redesign; remembered old names still open the right place. */
+const OLD_SECTIONS: Record<string, Section> = { talks: "briefs", players: "stories" };
 
 function Dashboard({ adminKey }: { adminKey: string }) {
   const [players, setPlayers] = useState<Player[] | null>(null);
+  const [convs, setConvs] = useState<Conv[] | null>(null);
+  const [people, setPeople] = useState<Person[] | null>(null);
+  const [orgInfo, setOrgInfo] = useState<OrgInfo | null>(null);
   const [error, setError] = useState("");
   const [refreshing, setRefreshing] = useState(false);
   const [filter, setFilter] = useState<Filter>("all");
@@ -189,19 +155,34 @@ function Dashboard({ adminKey }: { adminKey: string }) {
   const [reading, setReading] = useState<Player | null>(null);
   const [adding, setAdding] = useState(false);
   const [toast, setToast] = useState("");
+  const [storiesTab, setStoriesTab] = useState<"stories" | "players">("stories");
+  const [briefStart, setBriefStart] = useState<{ view?: BriefView; n: number }>({ n: 0 });
+  const [peopleFilter, setPeopleFilter] = useState<PeopleFilter | undefined>(undefined);
   const [section, setSection] = useState<Section>(() => {
     try {
-      const s = localStorage.getItem("dmsaAdminSection") as Section;
-      return NAV.some((n) => n.id === s) ? s : "home";
+      const raw = localStorage.getItem("dmsaAdminSection") || "";
+      const s = (OLD_SECTIONS[raw] || raw) as Section;
+      if (raw === "players") return "stories";
+      return ALL_SECTIONS.includes(s) ? s : "home";
     } catch {
       return "home";
     }
   });
-  const go = (s: Section, f?: Filter) => {
+
+  const go: Go = (s, o = {}) => {
     setSection(s);
-    if (f) setFilter(f);
     setOpenId(null);
     setAdding(false);
+    if (o.storiesTab) setStoriesTab(o.storiesTab);
+    if (o.playerFilter) setFilter(o.playerFilter);
+    if (o.playerId === "new") setAdding(true);
+    else if (o.playerId) {
+      setFilter("all");
+      setOpenId(o.playerId);
+    }
+    // Opening Briefs always starts fresh (a new key remounts it), at the asked view if any.
+    if (s === "briefs") setBriefStart((b) => ({ view: o.brief, n: b.n + 1 }));
+    setPeopleFilter(o.peopleFilter);
     document.querySelector("[data-admin-main]")?.scrollTo(0, 0);
     window.scrollTo(0, 0);
     try {
@@ -212,12 +193,22 @@ function Dashboard({ adminKey }: { adminKey: string }) {
   };
 
   const load = useCallback(() => {
+    // The other lists load alongside; each screen shows what has arrived.
+    storyAdmin<{ conversations: Conv[] }>("convList", adminKey, {}, 90000)
+      .then((r) => setConvs(r.conversations))
+      .catch(() => setConvs((c) => c || []));
+    storyAdmin<{ people: Person[] }>("people", adminKey, {}, 90000)
+      .then((r) => setPeople(r.people))
+      .catch(() => setPeople((p) => p || []));
+    storyAdmin<OrgInfo>("orgGet", adminKey, {}, 90000)
+      .then(setOrgInfo)
+      .catch(() => {});
     return storyAdmin<{ players: Player[] }>("list", adminKey, {}, 90000)
       .then((r) => {
         setPlayers(r.players.filter((p) => !/\(test\)/i.test(p.name)));
         setError("");
       })
-      .catch((e) => setError(e instanceof StoryApiError && e.code === "not_admin" ? "This app link is no longer valid." : "Couldn't load players. Check your internet and try again."))
+      .catch((e) => setError(e instanceof StoryApiError && e.code === "not_admin" ? "This app link is no longer valid." : "Couldn't load your data. Check your internet and try again."))
       .finally(() => setRefreshing(false));
   }, [adminKey]);
 
@@ -251,34 +242,68 @@ function Dashboard({ adminKey }: { adminKey: string }) {
     setRefreshing(true);
     load();
   };
+  const followCount = (people || []).filter(needsFollowUp).length;
+  const short = orgInfo?.org.short || "";
 
   return (
     <Shell>
-      <div className="lg:grid lg:h-dvh lg:grid-cols-[232px_1fr]">
+      <div className="lg:grid lg:h-dvh lg:grid-cols-[248px_1fr]">
         {/* ---- navigation: side rail on computers, bottom bar on phones ---- */}
-        <nav className="hidden bg-[var(--navy)] px-3 py-5 text-white lg:flex lg:flex-col" aria-label="Main">
-          <div className="flex items-center gap-3 px-2">
-            <Logo small />
+        <nav className="hidden border-r border-[var(--line)] bg-[var(--surface)] px-3 py-4 lg:flex lg:flex-col" aria-label="Main">
+          <div className="flex items-center gap-2.5 px-2">
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src={`${BASE}/myithri-small.webp`} alt="" className="h-9 w-9 rounded-full bg-[var(--teal-soft)] object-cover" />
             <div>
-              <p className="font-heading text-[15px] font-bold leading-tight">DMSA</p>
-              <p className="text-xs text-white/60">Players &amp; stories</p>
+              <p className="font-heading text-[16px] font-bold leading-tight">Myithri</p>
+              <p className="text-[11px] text-[var(--muted)]">by Auraclusive</p>
             </div>
           </div>
-          <ul className="mt-8 space-y-1">
+          <button
+            onClick={() => go("settings")}
+            className="mt-5 flex items-center gap-2.5 rounded-xl border border-[var(--line)] px-2.5 py-2 text-left transition hover:border-[var(--teal)]"
+            title="Organisation settings"
+          >
+            <span className="flex h-8 w-12 flex-none items-center justify-center overflow-hidden rounded-md bg-white">
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              {orgInfo?.logo ? <img src={orgInfo.logo} alt="" className="max-h-full max-w-full object-contain" /> : <Building2 className="h-4 w-4 text-[var(--muted)]" />}
+            </span>
+            <span className="min-w-0 flex-1">
+              <span className="block text-[11px] text-[var(--muted)]">Organisation</span>
+              <span className="block truncate text-sm font-semibold">{short || "…"}</span>
+            </span>
+            <ChevronsUpDown className="h-4 w-4 flex-none text-[var(--muted)]" />
+          </button>
+          <div className="mt-4">
+            <NewMenu go={go} align="left" full />
+          </div>
+          <ul className="mt-4 space-y-0.5">
             {NAV.map((n) => (
               <li key={n.id}>
                 <button
                   onClick={() => go(n.id)}
                   aria-current={section === n.id ? "page" : undefined}
-                  className={`flex w-full items-center gap-3 rounded-xl px-3 py-3 text-[15px] font-semibold transition ${
-                    section === n.id ? "bg-white text-[var(--navy)]" : "text-white/75 hover:bg-white/10 hover:text-white"
+                  className={`flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-[15px] font-semibold transition ${
+                    section === n.id ? "bg-[var(--teal-soft)] text-[var(--navy)]" : "text-[var(--muted)] hover:bg-[var(--bg)] hover:text-[var(--ink)]"
                   }`}
                 >
-                  <n.icon className="h-5 w-5" /> {n.label}
+                  <n.icon className="h-5 w-5" /> <span className="flex-1 text-left">{n.label}</span>
+                  {n.id === "people" && followCount > 0 && (
+                    <span className="rounded-full bg-[var(--alert)] px-2 py-0.5 text-[11px] font-bold tabular-nums text-white">{followCount}</span>
+                  )}
                 </button>
               </li>
             ))}
           </ul>
+          <div className="flex-1" />
+          <button
+            onClick={() => go("settings")}
+            aria-current={section === "settings" ? "page" : undefined}
+            className={`flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-[15px] font-semibold transition ${
+              section === "settings" ? "bg-[var(--teal-soft)] text-[var(--navy)]" : "text-[var(--muted)] hover:bg-[var(--bg)] hover:text-[var(--ink)]"
+            }`}
+          >
+            <Settings className="h-5 w-5" /> Settings
+          </button>
         </nav>
 
         <div data-admin-main className="min-w-0 pb-20 lg:h-dvh lg:overflow-y-auto lg:pb-0">
@@ -298,110 +323,154 @@ function Dashboard({ adminKey }: { adminKey: string }) {
           )}
 
           {players && section === "home" && (
-            <HomeView players={players} counts={counts} adminKey={adminKey} go={go} onRead={setReading} refreshing={refreshing} onRefresh={refresh} />
+            <HomeView adminKey={adminKey} players={players} convs={convs} people={people} orgInfo={orgInfo} go={go} onRead={setReading} refreshing={refreshing} onRefresh={refresh} />
           )}
+
+          {section === "briefs" && <ConversationsView key={briefStart.n} start={briefStart.view} adminKey={adminKey} toast={showToast} />}
+
+          {players && section === "people" && (
+            <PeopleView key={peopleFilter || "all"} adminKey={adminKey} players={players} people={people} setPeople={setPeople} go={go} initialFilter={peopleFilter} toast={showToast} />
+          )}
+
+          {section === "reports" && <ReportsView adminKey={adminKey} convs={convs} toast={showToast} />}
+
+          {section === "settings" && <SettingsView adminKey={adminKey} orgInfo={orgInfo} setOrgInfo={setOrgInfo} toast={showToast} />}
 
           {players && section === "stories" && (
-            <StoriesView
-              adminKey={adminKey}
-              players={players}
-              onRead={setReading}
-              top={<ImpactCard adminKey={adminKey} toast={showToast} />}
-              onOpenPlayer={(p) => {
-                go("players");
-                setOpenId(p.id);
-              }}
-            />
-          )}
-
-          {section === "talks" && <ConversationsView adminKey={adminKey} toast={showToast} />}
-
-          {players && section === "players" && (
-            <div className="lg:grid lg:h-dvh lg:grid-cols-[minmax(340px,420px)_1fr]">
-              <div className="lg:flex lg:h-dvh lg:flex-col lg:overflow-hidden lg:border-r lg:border-[var(--line)]">
-                <header className="px-4 pb-1 pt-5">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <h1 className="font-heading text-2xl font-bold">Players</h1>
-                      <p className="text-sm text-[var(--muted)]">
-                        {players.length} players · {counts.finished} interviewed
-                      </p>
-                    </div>
-                    <RefreshButton spinning={refreshing} onClick={refresh} />
-                  </div>
-                </header>
-                <div className="space-y-3 px-4 pt-3">
-                  <label className="flex items-center gap-2 rounded-xl border border-[var(--line)] bg-[var(--surface)] px-3 py-3 focus-within:border-[var(--teal)]">
-                    <Search className="h-4 w-4 text-[var(--muted)]" />
-                    <input
-                      value={query}
-                      onChange={(e) => setQuery(e.target.value)}
-                      placeholder="Search by name, place or phone"
-                      className="w-full bg-transparent text-[15px] outline-none placeholder:text-[var(--muted)]"
-                    />
-                  </label>
-                  <div className="-mx-4 flex gap-2 overflow-x-auto px-4 pb-1 [scrollbar-width:none]">
-                    {FILTERS.map((f) => (
+            <>
+              <div className={storiesTab === "players" ? "border-b border-[var(--line)] bg-[var(--bg)] lg:sticky lg:top-0 lg:z-10" : ""}>
+                <div className={`mx-auto px-4 pt-5 lg:px-8 lg:pt-8 ${storiesTab === "players" ? "" : "max-w-5xl"}`}>
+                  <PageHeader
+                    title="Stories"
+                    subtitle="Players tell their story to Myithri; each interview becomes a two-language impact story you can share."
+                    actions={
+                      storiesTab === "players" ? (
+                        <button
+                          onClick={() => {
+                            setOpenId(null);
+                            setAdding(true);
+                          }}
+                          className="flex items-center gap-2 rounded-xl bg-[var(--navy)] px-4 py-2.5 text-[15px] font-semibold text-white transition hover:bg-[var(--navy2)]"
+                        >
+                          <Plus className="h-4 w-4" /> Add player
+                        </button>
+                      ) : undefined
+                    }
+                  />
+                  <div role="tablist" className="mt-4 flex gap-6 border-b border-[var(--line)]">
+                    {(["stories", "players"] as const).map((t) => (
                       <button
-                        key={f.id}
-                        onClick={() => setFilter(f.id)}
-                        className={`flex flex-none items-center gap-1.5 rounded-full border px-3.5 py-2 text-[13px] font-semibold transition ${
-                          filter === f.id
-                            ? f.id === "stuck"
-                              ? "border-[var(--alert)] bg-[var(--alert)] text-white"
-                              : "border-[var(--navy)] bg-[var(--navy)] text-white"
-                            : "border-[var(--line)] bg-[var(--surface)] text-[var(--ink)]"
-                        }`}
+                        key={t}
+                        role="tab"
+                        aria-selected={storiesTab === t}
+                        onClick={() => {
+                          setStoriesTab(t);
+                          setOpenId(null);
+                          setAdding(false);
+                        }}
+                        className={`-mb-px border-b-2 pb-2.5 text-[15px] font-semibold transition ${storiesTab === t ? "border-[var(--navy)] text-[var(--ink)]" : "border-transparent text-[var(--muted)] hover:text-[var(--ink)]"}`}
                       >
-                        {f.label}
-                        <span className="tabular-nums opacity-70">{counts[f.id]}</span>
+                        {t === "stories" ? `Stories (${players.filter((p) => p.pdfEnUrl).length})` : `Players (${players.length})`}
                       </button>
                     ))}
                   </div>
                 </div>
-                <ul className="mt-2 flex-1 space-y-2 px-4 pb-28 pt-1 lg:overflow-y-auto lg:pb-24">
-                  {shown.map((p) => (
-                    <li key={p.id}>
-                      <PlayerRow player={p} active={p.id === openId} onOpen={() => setOpenId(p.id)} adminKey={adminKey} onSent={replace} />
-                    </li>
-                  ))}
-                  {!shown.length && (
-                    <li className="rounded-xl border border-dashed border-[var(--line)] px-4 py-10 text-center text-sm text-[var(--muted)]">
-                      {filter === "stuck" ? "Nobody needs a reminder right now." : "No players match."}
-                    </li>
-                  )}
-                </ul>
               </div>
 
-              <div className={`${open || adding ? "fixed inset-0 z-30 overflow-y-auto" : "hidden"} bg-[var(--bg)] lg:static lg:block lg:h-dvh lg:overflow-y-auto`}>
-                {adding ? (
-                  <AddPlayer
-                    adminKey={adminKey}
-                    onBack={() => setAdding(false)}
-                    onAdded={(p) => {
-                      setPlayers((xs) => [...(xs || []), p]);
-                      setAdding(false);
-                      setOpenId(p.id);
-                    }}
-                  />
-                ) : open ? (
-                  <PlayerPage key={open.id} adminKey={adminKey} player={open} onBack={() => setOpenId(null)} onChange={replace} toast={showToast} onRead={() => setReading(open)} />
-                ) : (
-                  <div className="hidden h-full flex-col items-center justify-center px-10 text-center lg:flex">
-                    <Users className="h-10 w-10 text-[var(--line)]" />
-                    <p className="mt-4 font-heading text-lg font-bold">Choose a player</p>
-                    <p className="mt-1 max-w-xs text-sm text-[var(--muted)]">You&apos;ll see their interview, photos and story here.</p>
+              {storiesTab === "stories" && (
+                <StoriesView
+                  adminKey={adminKey}
+                  players={players}
+                  onRead={setReading}
+                  hideHeader
+                  top={<ImpactCard adminKey={adminKey} toast={showToast} />}
+                  onOpenPlayer={(p) => {
+                    setStoriesTab("players");
+                    setOpenId(p.id);
+                  }}
+                />
+              )}
+
+              {storiesTab === "players" && (
+                <div className="lg:grid lg:grid-cols-[minmax(340px,420px)_1fr]">
+                  <div className="lg:border-r lg:border-[var(--line)]">
+                    <div className="space-y-3 px-4 pt-4">
+                      <div className="flex items-center gap-2">
+                        <label className="flex flex-1 items-center gap-2 rounded-xl border border-[var(--line)] bg-[var(--surface)] px-3 py-3 focus-within:border-[var(--teal)]">
+                          <Search className="h-4 w-4 text-[var(--muted)]" />
+                          <input
+                            value={query}
+                            onChange={(e) => setQuery(e.target.value)}
+                            placeholder="Search by name, place or phone"
+                            className="w-full bg-transparent text-[15px] outline-none placeholder:text-[var(--muted)]"
+                          />
+                        </label>
+                        <RefreshButton spinning={refreshing} onClick={refresh} />
+                      </div>
+                      <div className="-mx-4 flex gap-2 overflow-x-auto px-4 pb-1 [scrollbar-width:none]">
+                        {FILTERS.map((f) => (
+                          <button
+                            key={f.id}
+                            onClick={() => setFilter(f.id)}
+                            className={`flex flex-none items-center gap-1.5 rounded-full border px-3.5 py-2 text-[13px] font-semibold transition ${
+                              filter === f.id
+                                ? f.id === "stuck"
+                                  ? "border-[var(--alert)] bg-[var(--alert)] text-white"
+                                  : "border-[var(--navy)] bg-[var(--navy)] text-white"
+                                : "border-[var(--line)] bg-[var(--surface)] text-[var(--ink)]"
+                            }`}
+                          >
+                            {f.label}
+                            <span className="tabular-nums opacity-70">{counts[f.id]}</span>
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                    <ul className="mt-2 space-y-2 px-4 pb-28 pt-1 lg:pb-12">
+                      {shown.map((p) => (
+                        <li key={p.id}>
+                          <PlayerRow player={p} active={p.id === openId} onOpen={() => setOpenId(p.id)} adminKey={adminKey} onSent={replace} />
+                        </li>
+                      ))}
+                      {!shown.length && (
+                        <li className="rounded-xl border border-dashed border-[var(--line)] px-4 py-10 text-center text-sm text-[var(--muted)]">
+                          {filter === "stuck" ? "Nobody needs a reminder right now." : "No players match."}
+                        </li>
+                      )}
+                    </ul>
                   </div>
-                )}
-              </div>
-            </div>
+
+                  <div className={`${open || adding ? "fixed inset-0 z-30 overflow-y-auto" : "hidden"} bg-[var(--bg)] lg:static lg:block`}>
+                    {adding ? (
+                      <AddPlayer
+                        adminKey={adminKey}
+                        onBack={() => setAdding(false)}
+                        onAdded={(p) => {
+                          setPlayers((xs) => [...(xs || []), p]);
+                          setAdding(false);
+                          setOpenId(p.id);
+                        }}
+                      />
+                    ) : open ? (
+                      <PlayerPage key={open.id} adminKey={adminKey} player={open} onBack={() => setOpenId(null)} onChange={replace} toast={showToast} onRead={() => setReading(open)} />
+                    ) : (
+                      <div className="hidden flex-col items-center justify-center px-10 py-24 text-center lg:flex">
+                        <Users className="h-10 w-10 text-[var(--line)]" />
+                        <p className="mt-4 font-heading text-lg font-bold">Choose a player</p>
+                        <p className="mt-1 max-w-xs text-sm text-[var(--muted)]">You&apos;ll see their interview, photos and story here.</p>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
+            </>
           )}
         </div>
       </div>
 
       {/* bottom bar on phones */}
       <nav className="fixed inset-x-0 bottom-0 z-20 border-t border-[var(--line)] bg-[var(--surface)]/95 pb-[env(safe-area-inset-bottom)] backdrop-blur lg:hidden" aria-label="Main">
-        <ul className="grid grid-cols-4">
+        <ul className="grid grid-cols-5">
           {NAV.map((n) => (
             <li key={n.id}>
               <button
@@ -409,8 +478,9 @@ function Dashboard({ adminKey }: { adminKey: string }) {
                 aria-current={section === n.id ? "page" : undefined}
                 className={`relative flex w-full flex-col items-center gap-1 py-2.5 text-[11px] font-semibold ${section === n.id ? "text-[var(--navy)]" : "text-[var(--muted)]"}`}
               >
-                <span className={`flex h-8 w-14 items-center justify-center rounded-full transition ${section === n.id ? "bg-[var(--teal-soft)]" : ""}`}>
+                <span className={`relative flex h-8 w-12 items-center justify-center rounded-full transition ${section === n.id ? "bg-[var(--teal-soft)]" : ""}`}>
                   <n.icon className="h-5 w-5" />
+                  {n.id === "people" && followCount > 0 && <span className="absolute right-1.5 top-1 h-2 w-2 rounded-full bg-[var(--alert)]" aria-label={`${followCount} to follow up`} />}
                 </span>
                 {n.label}
               </button>
@@ -418,18 +488,6 @@ function Dashboard({ adminKey }: { adminKey: string }) {
           ))}
         </ul>
       </nav>
-
-      {section === "players" && !adding && !open && (
-        <button
-          onClick={() => {
-            setOpenId(null);
-            setAdding(true);
-          }}
-          className="fixed bottom-20 right-4 z-20 flex items-center gap-2 rounded-full bg-[var(--navy)] px-5 py-3.5 text-[15px] font-semibold text-white shadow-[0_12px_30px_-10px_rgba(11,31,68,0.6)] transition hover:bg-[var(--navy2)] lg:bottom-6 lg:right-6"
-        >
-          <Plus className="h-5 w-5" /> Add player
-        </button>
-      )}
 
       {reading && <StoryReader adminKey={adminKey} player={reading} onClose={() => setReading(null)} toast={showToast} />}
 
@@ -447,268 +505,12 @@ function RefreshButton({ spinning, onClick, dark }: { spinning: boolean; onClick
     <button
       aria-label="Refresh"
       onClick={onClick}
-      className={`rounded-full p-2.5 transition focus-visible:outline focus-visible:outline-2 focus-visible:outline-[var(--teal)] ${
+      className={`flex-none rounded-full p-2.5 transition focus-visible:outline focus-visible:outline-2 focus-visible:outline-[var(--teal)] ${
         dark ? "bg-white/10 text-white hover:bg-white/20" : "border border-[var(--line)] bg-[var(--surface)] hover:border-[var(--teal)]"
       }`}
     >
       <RefreshCw className={`h-4 w-4 ${spinning ? "animate-spin" : ""}`} />
     </button>
-  );
-}
-
-// ---------- system check ----------
-
-interface Health {
-  status: "ok" | "warn" | "bad";
-  checks: { level: "ok" | "warn" | "bad"; text: string }[];
-  log: string[];
-  errors?: string[];
-}
-
-/** One line saying whether the automatic parts are working; tap for details. */
-function SystemCheck({ adminKey }: { adminKey: string }) {
-  const [h, setH] = useState<Health | null>(null);
-  const [open, setOpen] = useState(false);
-  useEffect(() => {
-    storyAdmin<Health>("health", adminKey, {}, 90000)
-      .then(setH)
-      .catch(() => setH(null));
-  }, [adminKey]);
-  if (!h) return null;
-  const tone = {
-    ok: { dot: "bg-[var(--teal)]", text: "Everything is working" },
-    warn: { dot: "bg-[var(--gold)]", text: "Working, with a note" },
-    bad: { dot: "bg-[var(--alert)]", text: "Something needs you" },
-  }[h.status];
-  return (
-    <section className="rounded-2xl border border-[var(--line)] bg-[var(--surface)]">
-      <button onClick={() => setOpen((v) => !v)} className="flex w-full items-center gap-3 px-4 py-3.5 text-left" aria-expanded={open}>
-        <HeartPulse className="h-5 w-5 flex-none text-[var(--muted)]" aria-hidden />
-        <span className="flex-1">
-          <span className="block text-[13px] font-bold uppercase tracking-[0.12em] text-[var(--muted)]">System check</span>
-          <span className="flex items-center gap-2 font-semibold">
-            <span className={`h-2.5 w-2.5 rounded-full ${tone.dot}`} aria-hidden />
-            {tone.text}
-          </span>
-        </span>
-        <ChevronDown className={`h-5 w-5 text-[var(--muted)] transition ${open ? "rotate-180" : ""}`} />
-      </button>
-      {open && (
-        <div className="border-t border-[var(--line)] px-4 pb-4 pt-3">
-          <ul className="space-y-2.5">
-            {h.checks.map((c, i) => (
-              <li key={i} className="flex gap-2.5 text-sm">
-                <span
-                  className={`mt-1.5 h-2 w-2 flex-none rounded-full ${c.level === "ok" ? "bg-[var(--teal)]" : c.level === "warn" ? "bg-[var(--gold)]" : "bg-[var(--alert)]"}`}
-                  aria-label={c.level === "ok" ? "fine" : c.level === "warn" ? "note" : "problem"}
-                />
-                <span>{c.text}</span>
-              </li>
-            ))}
-          </ul>
-          {h.errors && h.errors.length > 0 && (
-            <>
-              <p className="mt-4 text-[11px] font-bold uppercase tracking-[0.12em] text-[var(--alert)]">Recent problems</p>
-              <ul className="mt-1.5 space-y-1 font-mono text-[11px] leading-relaxed text-[var(--muted)]">
-                {h.errors.map((l, i) => (
-                  <li key={i}>{l}</li>
-                ))}
-              </ul>
-            </>
-          )}
-          {h.log.length > 0 && (
-            <>
-              <p className="mt-4 text-[11px] font-bold uppercase tracking-[0.12em] text-[var(--muted)]">Recent automatic work</p>
-              <ul className="mt-1.5 space-y-1 font-mono text-[11px] leading-relaxed text-[var(--muted)]">
-                {h.log
-                  .slice()
-                  .reverse()
-                  .map((l, i) => (
-                    <li key={i}>{l}</li>
-                  ))}
-              </ul>
-            </>
-          )}
-        </div>
-      )}
-    </section>
-  );
-}
-
-// ---------- home ----------
-
-function HomeView({
-  players,
-  counts,
-  adminKey,
-  go,
-  onRead,
-  refreshing,
-  onRefresh,
-}: {
-  players: Player[];
-  counts: Record<Filter, number>;
-  adminKey: string;
-  go: (s: Section, f?: Filter) => void;
-  onRead: (p: Player) => void;
-  refreshing: boolean;
-  onRefresh: () => void;
-}) {
-  const told = counts.finished;
-  const toRead = players.filter((p) => stageOf(p) === 5);
-  const needStory = players.filter((p) => stageOf(p) === 4);
-  const latest = players
-    .filter((p) => p.pdfEnUrl)
-    .sort((a, b) => String(b.updated).localeCompare(String(a.updated)))
-    .slice(0, 4);
-  const hour = new Date().getHours();
-  const hello = hour < 12 ? "Good morning" : hour < 17 ? "Good afternoon" : "Good evening";
-
-  const todo: { tone: "gold" | "teal" | "alert" | "navy"; icon: React.ReactNode; title: string; text: string; onClick: () => void }[] = [];
-  if (toRead.length)
-    todo.push({
-      tone: "gold",
-      icon: <BookOpen className="h-5 w-5" />,
-      title: `${toRead.length} ${toRead.length === 1 ? "story is" : "stories are"} ready to read`,
-      text: `Read ${toRead.length === 1 ? "it" : "them"}, then send the Kannada version to the player for their OK.`,
-      onClick: () => go("stories"),
-    });
-  if (needStory.length)
-    todo.push({
-      tone: "teal",
-      icon: <Sparkles className="h-5 w-5" />,
-      title: `${needStory.length} ${needStory.length === 1 ? "interview is" : "interviews are"} waiting for a story`,
-      text: "Usually written automatically right after the interview. Tap to write one now (about a minute).",
-      onClick: () => go("stories"),
-    });
-  if (counts.stuck)
-    todo.push({
-      tone: "alert",
-      icon: <BellRing className="h-5 w-5" />,
-      title: `${counts.stuck} ${counts.stuck === 1 ? "player needs" : "players need"} a reminder`,
-      text: "They got the link but haven't finished the interview for a day or more. A friendly WhatsApp nudge usually helps.",
-      onClick: () => go("players", "stuck"),
-    });
-  if (counts.details)
-    todo.push({
-      tone: "gold",
-      icon: <Pencil className="h-5 w-5" />,
-      title: `${counts.details} ${counts.details === 1 ? "story is" : "stories are"} missing details only you know`,
-      text: "Add He/She and \"DMSA support received\", then update the story - it gets much better.",
-      onClick: () => go("players", "details"),
-    });
-  if (counts.notSent)
-    todo.push({
-      tone: "navy",
-      icon: <MessageCircle className="h-5 w-5" />,
-      title: `${counts.notSent} ${counts.notSent === 1 ? "player hasn't" : "players haven't"} been invited`,
-      text: "Send their interview link on WhatsApp.",
-      onClick: () => go("players", "notSent"),
-    });
-
-  const toneCls = {
-    gold: "bg-[var(--gold-soft)] text-[#7D5A1E]",
-    teal: "bg-[var(--teal-soft)] text-[var(--teal)]",
-    alert: "bg-[var(--alert-soft)] text-[var(--alert)]",
-    navy: "bg-[var(--bg)] text-[var(--navy)]",
-  };
-
-  return (
-    <div>
-      <header className="bg-[var(--navy)] px-4 pb-16 pt-5 text-white lg:px-8">
-        <div className="mx-auto flex max-w-5xl items-start justify-between gap-3">
-          <div className="flex items-center gap-3">
-            <span className="lg:hidden">
-              <Logo small />
-            </span>
-            <div>
-              <p className="text-sm text-white/60">{hello}, Shiva</p>
-              <h1 className="font-heading text-2xl font-bold leading-tight">Players&apos; stories</h1>
-            </div>
-          </div>
-          <RefreshButton spinning={refreshing} onClick={onRefresh} dark />
-        </div>
-      </header>
-
-      <main className="mx-auto -mt-12 max-w-5xl space-y-6 px-4 pb-10 lg:px-8">
-        {/* progress, in words */}
-        <section className="rounded-2xl border border-[var(--line)] bg-[var(--surface)] p-5 shadow-[0_18px_40px_-28px_rgba(11,31,68,0.55)]">
-          <p className="text-[15px]">
-            <span className="font-display text-5xl leading-none tabular-nums text-[var(--navy)]">{told}</span>
-            <span className="text-[var(--muted)]"> of {players.length} players have told their story</span>
-          </p>
-          <div className="mt-4 h-2.5 overflow-hidden rounded-full bg-[var(--bg)]" aria-hidden>
-            <div
-              className="h-full rounded-full bg-gradient-to-r from-[var(--teal)] to-[var(--gold)] transition-[width] duration-700"
-              style={{ width: `${players.length ? (told / players.length) * 100 : 0}%` }}
-            />
-          </div>
-          <dl className="mt-4 grid grid-cols-3 gap-2 text-center">
-            {[
-              { n: counts.waiting + counts.started, l: "on the way" },
-              { n: players.filter((p) => p.pdfEnUrl).length, l: "stories written" },
-              { n: players.filter((p) => stageOf(p) === 6).length, l: "approved" },
-            ].map((x) => (
-              <div key={x.l} className="rounded-xl bg-[var(--bg)] px-2 py-2.5">
-                <dt className="sr-only">{x.l}</dt>
-                <dd className="font-heading text-xl font-bold tabular-nums">{x.n}</dd>
-                <dd className="text-xs text-[var(--muted)]">{x.l}</dd>
-              </div>
-            ))}
-          </dl>
-        </section>
-
-        <SystemCheck adminKey={adminKey} />
-
-        {/* what needs Shiva */}
-        <section>
-          <h2 className="font-heading text-lg font-bold">What needs you</h2>
-          {todo.length ? (
-            <ul className="mt-3 grid gap-2.5 lg:grid-cols-2">
-              {todo.map((t) => (
-                <li key={t.title}>
-                  <button
-                    onClick={t.onClick}
-                    className="flex w-full items-center gap-3.5 rounded-2xl border border-[var(--line)] bg-[var(--surface)] p-4 text-left transition hover:border-[var(--teal)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-[var(--teal)]"
-                  >
-                    <span className={`flex h-11 w-11 flex-none items-center justify-center rounded-xl ${toneCls[t.tone]}`}>{t.icon}</span>
-                    <span className="min-w-0 flex-1">
-                      <span className="block font-semibold">{t.title}</span>
-                      <span className="block text-sm text-[var(--muted)]">{t.text}</span>
-                    </span>
-                    <ChevronRight className="h-5 w-5 flex-none text-[var(--muted)]" />
-                  </button>
-                </li>
-              ))}
-            </ul>
-          ) : (
-            <p className="mt-3 rounded-2xl border border-dashed border-[var(--line)] p-6 text-center text-[var(--muted)]">All caught up. Nothing needs you right now.</p>
-          )}
-        </section>
-
-        {/* latest stories */}
-        {latest.length > 0 && (
-          <section>
-            <div className="flex items-baseline justify-between">
-              <h2 className="font-heading text-lg font-bold">Latest stories</h2>
-              <button onClick={() => go("stories")} className="text-sm font-semibold text-[var(--teal)]">
-                See all
-              </button>
-            </div>
-            <ul className="mt-3 grid grid-cols-2 gap-4 sm:grid-cols-4">
-              {latest.map((p) => (
-                <li key={p.id}>
-                  <button onClick={() => onRead(p)} className="group block w-full text-left">
-                    <StoryCover adminKey={adminKey} playerId={p.id} className="aspect-[1/1.414] rounded-lg ring-1 ring-[var(--line)] transition group-hover:-translate-y-0.5" />
-                    <p className="mt-2 truncate text-sm font-semibold">{p.name}</p>
-                  </button>
-                </li>
-              ))}
-            </ul>
-          </section>
-        )}
-      </main>
-    </div>
   );
 }
 

@@ -39,6 +39,8 @@ interface Info {
   askPhone: boolean;
   consent: Record<Lang, string[]>;
   liveModels: number;
+  /** The organisation's short name (Settings). */
+  org?: string;
 }
 
 type Screen = "loading" | "invalid" | "closed" | "welcome" | "consent" | "device" | "interview" | "saving" | "thanks" | "done" | "error";
@@ -70,7 +72,7 @@ const T = {
     badLink: "This link is not valid. Please check the link you were sent.",
     needName: "Please write your name.",
     needPhone: "Please write your 10-digit phone number.",
-    role: (type: string) => (type === "interview" ? "DMSA's AI interviewer" : "DMSA's AI volunteer"),
+    role: (type: string, org: string) => (type === "interview" ? `${org}'s AI interviewer` : `${org}'s AI volunteer`),
     copy: {
       saving: "Saving your conversation…",
       savingHelp: "Please keep this page open. It takes a few seconds.",
@@ -106,7 +108,7 @@ const T = {
     badLink: "ಈ ಲಿಂಕ್ ಸರಿಯಿಲ್ಲ. ನಿಮಗೆ ಕಳುಹಿಸಿದ ಲಿಂಕ್ ಪರಿಶೀಲಿಸಿ.",
     needName: "ದಯವಿಟ್ಟು ನಿಮ್ಮ ಹೆಸರು ಬರೆಯಿರಿ.",
     needPhone: "ದಯವಿಟ್ಟು 10 ಅಂಕಿಯ ಫೋನ್ ಸಂಖ್ಯೆ ಬರೆಯಿರಿ.",
-    role: (type: string) => (type === "interview" ? "DMSA ಯ AI ಸಂದರ್ಶಕಿ" : "DMSA ಯ AI ಸ್ವಯಂಸೇವಕಿ"),
+    role: (type: string, org: string) => (type === "interview" ? `${org} ಯ AI ಸಂದರ್ಶಕಿ` : `${org} ಯ AI ಸ್ವಯಂಸೇವಕಿ`),
     copy: {
       saving: "ನಿಮ್ಮ ಮಾತುಕತೆ ಉಳಿಸಲಾಗುತ್ತಿದೆ…",
       savingHelp: "ದಯವಿಟ್ಟು ಈ ಪುಟ ತೆರೆದಿಡಿ. ಕೆಲವೇ ಸೆಕೆಂಡು.",
@@ -142,7 +144,7 @@ const T = {
     badLink: "यह लिंक सही नहीं है। कृपया आपको भेजा गया लिंक देखें।",
     needName: "कृपया अपना नाम लिखें।",
     needPhone: "कृपया 10 अंकों का फ़ोन नंबर लिखें।",
-    role: (type: string) => (type === "interview" ? "DMSA की AI इंटरव्यूअर" : "DMSA की AI स्वयंसेवक"),
+    role: (type: string, org: string) => (type === "interview" ? `${org} की AI इंटरव्यूअर` : `${org} की AI स्वयंसेवक`),
     copy: {
       saving: "आपकी बातचीत सेव हो रही है…",
       savingHelp: "कृपया यह पेज खुला रखें। कुछ ही सेकंड लगेंगे।",
@@ -201,7 +203,7 @@ export default function ConversationApp({ code }: { code: string }) {
         // Older replies have no Hindi consent: show English rather than nothing.
         i.consent = { ...i.consent, hi: i.consent.hi || i.consent.en };
         setInfo(i);
-        document.title = `${i.name} | DMSA`;
+        document.title = `${i.name} | ${i.org || "Myithri"}`;
         if (i.language === "kn" || i.language === "en" || i.language === "hi") setLang(i.language);
         if (!i.open) return setScreen("closed");
         const saved = readSaved(code);
@@ -325,7 +327,7 @@ export default function ConversationApp({ code }: { code: string }) {
             <MyithriFace className="h-16 w-16 flex-none rounded-full bg-[#f3ece4] ring-2 ring-white/20" />
             <div>
               <p className="font-heading text-lg font-bold leading-tight">{MYITHRI_NAME[lang]}</p>
-              <p className="text-sm text-teal-200">{c.role(info.type)}</p>
+              <p className="text-sm text-teal-200">{c.role(info.type, info.org || "DMSA")}</p>
             </div>
           </div>
           <p className="mt-5 text-lg leading-relaxed text-navy-100">{info.intro}</p>
@@ -487,7 +489,7 @@ export default function ConversationApp({ code }: { code: string }) {
               over: "[TIME] Time is up. Thank them warmly, say goodbye and end the conversation.",
             },
           }}
-          copy={{ ...c.copy, maitriRole: c.role(info.type) }}
+          copy={{ ...c.copy, maitriRole: c.role(info.type, info.org || "DMSA") }}
         />
       )}
 

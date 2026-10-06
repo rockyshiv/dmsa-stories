@@ -453,6 +453,7 @@ export function StoriesView({
   onRead,
   onOpenPlayer,
   top,
+  hideHeader,
 }: {
   adminKey: string;
   players: Player[];
@@ -460,6 +461,8 @@ export function StoriesView({
   onOpenPlayer: (p: Player) => void;
   /** Shown under the heading (the impact report card). */
   top?: React.ReactNode;
+  /** The page above already shows the title. */
+  hideHeader?: boolean;
 }) {
   const withStory = useMemo(
     () => players.filter((p) => p.pdfEnUrl).sort((a, b) => Number(!!a.approved) - Number(!!b.approved) || String(b.updated).localeCompare(String(a.updated))),
@@ -469,8 +472,8 @@ export function StoriesView({
 
   return (
     <div className="mx-auto max-w-5xl px-4 pb-28 pt-5 lg:px-8 lg:pb-10">
-      <h1 className="font-heading text-2xl font-bold">Stories</h1>
-      <p className="mt-1 text-[15px] text-[var(--muted)]">
+      {!hideHeader && <h1 className="font-heading text-2xl font-bold">Stories</h1>}
+      <p className={`text-[15px] text-[var(--muted)] ${hideHeader ? "" : "mt-1"}`}>
         {withStory.length ? `${withStory.length} ${withStory.length === 1 ? "story" : "stories"} written. Tap one to read or share it.` : "No stories yet. They appear here once an interview is done."}
       </p>
       {top}
