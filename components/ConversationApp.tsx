@@ -61,6 +61,14 @@ const T = {
     micTitle: "Microphone",
     micHelp: "Your phone will ask to use the microphone. Choose Allow so Myithri can hear you.",
     allowMic: "Allow microphone",
+    micBlocked: "Your phone has blocked the microphone for this page. To switch it back on:",
+    micBlockedSteps: [
+      "Tap the small icon at the left of the web address (a lock or ⓘ).",
+      "Tap \"Permissions\" or \"Site settings\".",
+      "Turn on Microphone (choose Allow).",
+      "Come back here and tap \"Try again\".",
+    ],
+    micDismissed: "The microphone question was closed. Tap the button below and choose \"Allow\".",
     cameraHelp: "Your phone will ask to use the camera and microphone. Choose Allow so Myithri can hear you and the conversation can be recorded.",
     ready: "All set. Find a quiet place, then start.",
     talk: "Start talking with Myithri",
@@ -97,6 +105,14 @@ const T = {
     micTitle: "ಮೈಕ್",
     micHelp: "ನಿಮ್ಮ ಫೋನ್ ಮೈಕ್ ಬಳಸಲು ಅನುಮತಿ ಕೇಳುತ್ತದೆ. ಮೈತ್ರಿ ನಿಮ್ಮ ಮಾತು ಕೇಳಲು Allow ಆಯ್ಕೆ ಮಾಡಿ.",
     allowMic: "ಮೈಕ್‌ಗೆ ಅನುಮತಿ ನೀಡಿ",
+    micBlocked: "ನಿಮ್ಮ ಫೋನ್ ಈ ಪುಟಕ್ಕೆ ಮೈಕ್ ಬ್ಲಾಕ್ ಮಾಡಿದೆ. ಮತ್ತೆ ಆನ್ ಮಾಡಲು:",
+    micBlockedSteps: [
+      "ವೆಬ್ ವಿಳಾಸದ ಎಡಭಾಗದಲ್ಲಿರುವ ಸಣ್ಣ ಚಿಹ್ನೆ (ಬೀಗ ಅಥವಾ ⓘ) ಒತ್ತಿ.",
+      "\"Permissions\" ಅಥವಾ \"Site settings\" ಒತ್ತಿ.",
+      "Microphone ಆನ್ ಮಾಡಿ (Allow ಆಯ್ಕೆ ಮಾಡಿ).",
+      "ಇಲ್ಲಿಗೆ ಹಿಂದಿರುಗಿ \"ಮತ್ತೆ ಪ್ರಯತ್ನಿಸಿ\" ಒತ್ತಿ.",
+    ],
+    micDismissed: "ಮೈಕ್ ಅನುಮತಿ ಪ್ರಶ್ನೆ ಮುಚ್ಚಲಾಯಿತು. ಕೆಳಗಿನ ಬಟನ್ ಒತ್ತಿ \"Allow\" ಆಯ್ಕೆ ಮಾಡಿ.",
     cameraHelp: "ನಿಮ್ಮ ಫೋನ್ ಕ್ಯಾಮೆರಾ ಮತ್ತು ಮೈಕ್ ಬಳಸಲು ಅನುಮತಿ ಕೇಳುತ್ತದೆ. Allow ಆಯ್ಕೆ ಮಾಡಿ.",
     ready: "ಎಲ್ಲಾ ಸಿದ್ಧ. ಶಾಂತವಾದ ಸ್ಥಳದಲ್ಲಿ ಕುಳಿತು ಆರಂಭಿಸಿ.",
     talk: "ಮೈತ್ರಿ ಜೊತೆ ಮಾತು ಆರಂಭಿಸಿ",
@@ -133,6 +149,14 @@ const T = {
     micTitle: "माइक",
     micHelp: "आपका फ़ोन माइक की अनुमति माँगेगा। Allow चुनें ताकि मैत्री आपको सुन सकें।",
     allowMic: "माइक की अनुमति दें",
+    micBlocked: "आपके फ़ोन ने इस पेज के लिए माइक बंद कर दिया है। फिर से चालू करने के लिए:",
+    micBlockedSteps: [
+      "वेब पते के बाईं ओर छोटे निशान (ताला या ⓘ) को दबाएँ।",
+      "\"Permissions\" या \"Site settings\" दबाएँ।",
+      "Microphone चालू करें (Allow चुनें)।",
+      "यहाँ वापस आकर \"फिर कोशिश करें\" दबाएँ।",
+    ],
+    micDismissed: "माइक की अनुमति वाला सवाल बंद हो गया। नीचे का बटन दबाएँ और \"Allow\" चुनें।",
     cameraHelp: "आपका फ़ोन कैमरा और माइक की अनुमति माँगेगा। Allow चुनें ताकि मैत्री आपको सुन सकें और बातचीत रिकॉर्ड हो सके।",
     ready: "सब तैयार है। किसी शांत जगह बैठकर शुरू करें।",
     talk: "मैत्री से बात शुरू करें",
@@ -409,7 +433,19 @@ export default function ConversationApp({ code }: { code: string }) {
           {!stream ? (
             <>
               <p className="mt-3 text-base text-navy-100">{info.recording === "video" && !voiceOnly ? c.cameraHelp : c.micHelp}</p>
-              {camError && <p className="mt-4 rounded-lg bg-red-900/60 p-4 text-red-100">{camError === "dismissed" ? t.cameraDismissed : t.cameraDenied}</p>}
+              {camError && (
+                <p className="mt-4 rounded-lg bg-red-900/60 p-4 text-red-100">
+                  {info.recording === "video" && !voiceOnly ? (camError === "dismissed" ? t.cameraDismissed : t.cameraDenied) : camError === "dismissed" ? c.micDismissed : c.micBlocked}
+                </p>
+              )}
+              {/* Voice briefs: without these steps a blocked microphone was a dead end. */}
+              {camError === "blocked" && !(info.recording === "video" && !voiceOnly) && (
+                <ol className="mt-4 list-decimal space-y-2 pl-6 text-base leading-relaxed text-navy-50">
+                  {c.micBlockedSteps.map((x) => (
+                    <li key={x}>{x}</li>
+                  ))}
+                </ol>
+              )}
               {camError === "blocked" && info.recording === "video" && !voiceOnly && (
                 <CameraBlocked
                   lang={lang}
@@ -426,10 +462,11 @@ export default function ConversationApp({ code }: { code: string }) {
                 />
               )}
               {camError === "blocked" && !inRealChrome() && <OpenInChrome code={logId} text={t.noCameraQuestion} button={t.openInChromeButton} />}
-              {camError !== "blocked" && (
+              {(camError !== "blocked" || !(info.recording === "video" && !voiceOnly)) && (
                 <StickyBar>
                   <PrimaryButton onClick={askDevice}>
-                    {info.recording === "video" ? <Camera className="h-5 w-5" /> : <Mic className="h-5 w-5" />} {info.recording === "video" ? t.allow : c.allowMic}
+                    {info.recording === "video" ? <Camera className="h-5 w-5" /> : <Mic className="h-5 w-5" />}{" "}
+                    {camError === "blocked" ? t.tryAgainCamera : info.recording === "video" ? t.allow : c.allowMic}
                   </PrimaryButton>
                 </StickyBar>
               )}
