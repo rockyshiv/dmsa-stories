@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
   AlertTriangle,
+  Box,
   BellRing,
   BookOpen,
   Check,
@@ -10,8 +11,10 @@ import {
   ChevronRight,
   CircleCheck,
   Circle,
+  Cloud,
   ExternalLink,
   FileText,
+  HardDrive,
   HeartPulse,
   ImageUp,
   Loader2,
@@ -23,7 +26,9 @@ import {
   Plus,
   RefreshCw,
   Search,
+  Server,
   Settings,
+  ShieldCheck,
   Sparkles,
   UserPlus,
 } from "lucide-react";
@@ -770,21 +775,56 @@ export function SettingsView({ adminKey, orgInfo, setOrgInfo, toast }: { adminKe
       </section>
 
       <section className={`${card} mt-5 p-5`}>
-        <h2 className="font-heading text-lg font-bold">Your data</h2>
-        <p className="mt-1 text-sm text-[var(--muted)]">
-          Recordings, transcripts, stories and reports are stored in your own Google Drive. Nothing is kept anywhere else.
-        </p>
-        <div className="mt-4 flex flex-wrap gap-2">
-          {orgInfo.links.drive && (
-            <a href={orgInfo.links.drive} target="_blank" rel="noreferrer" className="flex items-center gap-2 rounded-xl border border-[var(--line)] px-3 py-2 text-sm font-semibold transition hover:border-[var(--teal)]">
-              <ExternalLink className="h-4 w-4" /> Open Drive folder
-            </a>
-          )}
-          {orgInfo.links.sheet && (
-            <a href={orgInfo.links.sheet} target="_blank" rel="noreferrer" className="flex items-center gap-2 rounded-xl border border-[var(--line)] px-3 py-2 text-sm font-semibold transition hover:border-[var(--teal)]">
-              <ExternalLink className="h-4 w-4" /> Open control Sheet
-            </a>
-          )}
+        <h2 className="font-heading text-lg font-bold">Storage and privacy</h2>
+        <p className="mt-1 text-sm text-[var(--muted)]">Choose where recordings, transcripts, stories and reports are kept.</p>
+        <ul className="mt-4 space-y-2">
+          {STORAGE.map((o) => {
+            const on = o.id === "google";
+            return (
+              <li
+                key={o.id}
+                className={`flex flex-wrap items-center gap-3 rounded-xl border px-4 py-3 ${on ? "border-[var(--teal)] bg-[var(--teal-soft)]/40" : "border-[var(--line)]"}`}
+              >
+                <span className={`flex h-9 w-9 flex-none items-center justify-center rounded-lg ${on ? "bg-[var(--teal)] text-white" : "bg-[var(--bg)] text-[var(--muted)]"}`}>
+                  <o.icon className="h-5 w-5" />
+                </span>
+                <span className="min-w-0 flex-1">
+                  <span className={`block font-semibold ${on ? "" : "text-[var(--muted)]"}`}>{o.name}</span>
+                  <span className="block text-xs text-[var(--muted)]">{o.hint}</span>
+                </span>
+                {on ? (
+                  <span className="flex flex-none items-center gap-1.5 rounded-full bg-[var(--teal)] px-2.5 py-1 text-[11px] font-bold text-white">
+                    <Check className="h-3.5 w-3.5" /> Connected
+                  </span>
+                ) : (
+                  <span className="flex-none rounded-full bg-[var(--bg)] px-2.5 py-1 text-[11px] font-bold text-[var(--muted)]">Coming soon</span>
+                )}
+                {on && (orgInfo.links.drive || orgInfo.links.sheet) && (
+                  <span className="flex w-full flex-wrap gap-2 pl-12">
+                    {orgInfo.links.drive && (
+                      <a href={orgInfo.links.drive} target="_blank" rel="noreferrer" className="flex items-center gap-1.5 rounded-lg border border-[var(--line)] bg-[var(--surface)] px-3 py-1.5 text-sm font-semibold transition hover:border-[var(--teal)]">
+                        <ExternalLink className="h-4 w-4" /> Open Drive folder
+                      </a>
+                    )}
+                    {orgInfo.links.sheet && (
+                      <a href={orgInfo.links.sheet} target="_blank" rel="noreferrer" className="flex items-center gap-1.5 rounded-lg border border-[var(--line)] bg-[var(--surface)] px-3 py-1.5 text-sm font-semibold transition hover:border-[var(--teal)]">
+                        <ExternalLink className="h-4 w-4" /> Open control Sheet
+                      </a>
+                    )}
+                  </span>
+                )}
+              </li>
+            );
+          })}
+        </ul>
+        <div className="mt-4 flex gap-3 rounded-xl bg-[var(--bg)] p-4 text-sm">
+          <ShieldCheck className="mt-0.5 h-5 w-5 flex-none text-[var(--teal)]" aria-hidden />
+          <p>
+            <span className="font-semibold">Your data stays yours.</span>{" "}
+            Recordings, transcripts and reports are stored only in your connected storage, never on
+            Auraclusive&apos;s servers. To understand conversations, Myithri uses Google&apos;s Gemini AI. On the free plan, Google may use this to improve its
+            services; on a paid plan, it doesn&apos;t.
+          </p>
         </div>
       </section>
 
@@ -812,6 +852,14 @@ export function SettingsView({ adminKey, orgInfo, setOrgInfo, toast }: { adminKe
     </div>
   );
 }
+
+/** Where an organisation's data can live. Only Google Drive works today; the rest are on the roadmap. */
+const STORAGE: { id: string; name: string; hint: string; icon: typeof Cloud }[] = [
+  { id: "google", name: "Google Drive", hint: "Your own Google account: Drive folders and a control Sheet.", icon: HardDrive },
+  { id: "onedrive", name: "Microsoft OneDrive", hint: "For organisations on Microsoft 365.", icon: Cloud },
+  { id: "dropbox", name: "Dropbox", hint: "Your organisation's Dropbox.", icon: Box },
+  { id: "server", name: "Your own server", hint: "Secure storage you run, for larger organisations.", icon: Server },
+];
 
 // ---------- system check ----------
 
