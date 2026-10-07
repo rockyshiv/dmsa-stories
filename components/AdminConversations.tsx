@@ -1087,6 +1087,7 @@ function RespDetail({ adminKey, id, onBack, toast }: { adminKey: string; id: str
             </section>
           )}
           {transcript && <Transcript adminKey={adminKey} respId={r.id} fileId={transcript.id} name={r.name} />}
+          <TechLog adminKey={adminKey} respId={r.id} />
           {a && (
             <button onClick={summarise} disabled={!!work} className="w-full py-2 text-sm font-semibold text-[var(--teal)] disabled:opacity-60">
               {work || "Write the summary again"}
@@ -1095,6 +1096,40 @@ function RespDetail({ adminKey, id, onBack, toast }: { adminKey: string; id: str
         </main>
       )}
     </div>
+  );
+}
+
+/** What the person's phone reported (microphone, connection), for conversations that stopped early. */
+function TechLog({ adminKey, respId }: { adminKey: string; respId: string }) {
+  const [open, setOpen] = useState(false);
+  const [text, setText] = useState<string | null>(null);
+  useEffect(() => {
+    if (!open || text !== null) return;
+    storyAdmin<{ text: string }>("convLog", adminKey, { id: respId }, 60000)
+      .then((r) => setText(r.text || ""))
+      .catch(() => setText(""));
+  }, [open, text, adminKey, respId]);
+  return (
+    <section className="rounded-2xl border border-[var(--line)] bg-[var(--surface)]">
+      <button onClick={() => setOpen((v) => !v)} className="flex w-full items-center justify-between p-4 text-left" aria-expanded={open}>
+        <span>
+          <span className="block font-heading text-[15px] font-bold">Technical log</span>
+          <span className="block text-xs text-[var(--muted)]">What their phone reported, such as the microphone or connection. Useful when someone got stuck.</span>
+        </span>
+        <ChevronDown className={`h-5 w-5 flex-none transition ${open ? "rotate-180" : ""}`} />
+      </button>
+      {open && (
+        <div className="border-t border-[var(--line)] p-4">
+          {text === null ? (
+            <Loader2 className="mx-auto h-5 w-5 animate-spin text-[var(--teal)]" />
+          ) : text ? (
+            <pre className="max-h-80 overflow-auto whitespace-pre-wrap font-mono text-[11px] leading-relaxed text-[var(--muted)]">{text}</pre>
+          ) : (
+            <p className="text-sm text-[var(--muted)]">Nothing was reported.</p>
+          )}
+        </div>
+      )}
+    </section>
   );
 }
 

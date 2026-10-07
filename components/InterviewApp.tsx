@@ -608,7 +608,8 @@ export function InterviewScreen({
 
       {/* self view + topic progress */}
       <div className="mt-4 flex items-end gap-3 px-4">
-        <div className="relative">
+        {/* Voice-only calls keep the element (the engine needs it) but show no empty black box. */}
+        <div className={`relative ${stream.getVideoTracks().length ? "" : "hidden"}`}>
           <video ref={attach} muted playsInline className={`-scale-x-100 rounded-xl bg-black object-cover ring-2 ring-white/20 ${compact ? "h-24 w-[4.5rem]" : "h-40 w-28"}`} />
           {flash && (
             <div className="absolute inset-0 flex items-center justify-center rounded-xl bg-white/80 text-xs font-bold text-navy-900">
@@ -657,7 +658,7 @@ export function InterviewScreen({
         <div className="fixed inset-0 z-20 flex flex-col items-center justify-center bg-navy-950/90 p-6 text-center" role="dialog" aria-modal="true">
           <button
             onClick={() => engine.current?.tapToUnlockAudio()}
-            className="flex w-full max-w-sm flex-col items-center gap-3 rounded-3xl bg-teal-500 px-6 py-8 text-2xl font-bold text-white shadow-2xl"
+            className="flex w-full max-w-sm flex-col items-center gap-3 rounded-3xl bg-teal-500 px-6 py-8 text-2xl font-bold text-navy-950 shadow-2xl"
           >
             <Volume2 className="h-12 w-12" aria-hidden />
             {t.tapToHear}
@@ -828,7 +829,7 @@ export function LangToggle({ lang, setLang, langs = ["kn", "en"] }: { lang: Lang
           key={l}
           onClick={() => setLang(l)}
           aria-pressed={lang === l}
-          className={`rounded-full px-4 py-2 ${lang === l ? "bg-teal-500 text-white" : "text-navy-100"}`}
+          className={`rounded-full px-4 py-2 ${lang === l ? "bg-teal-500 text-navy-950" : "text-navy-100"}`}
         >
           {STRINGS[l].langName}
         </button>
@@ -863,7 +864,7 @@ export function PrimaryButton({ children, onClick, disabled }: { children: React
     <button
       onClick={onClick}
       disabled={disabled}
-      className="mt-8 flex w-full items-center justify-center gap-2 rounded-xl bg-teal-500 px-6 py-4 text-lg font-bold text-white shadow-lg shadow-teal-900/40 transition active:scale-[0.98] disabled:opacity-40"
+      className="mt-8 flex w-full items-center justify-center gap-2 rounded-xl bg-teal-500 px-6 py-4 text-lg font-bold text-navy-950 shadow-lg shadow-teal-900/40 transition active:scale-[0.98] disabled:opacity-40"
     >
       {children}
     </button>

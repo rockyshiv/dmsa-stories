@@ -211,6 +211,8 @@ export default function ConversationApp({ code }: { code: string }) {
   const [camError, setCamError] = useState<false | "dismissed" | "blocked">(false);
   const [voiceOnly, setVoiceOnly] = useState(false);
   const [audioCtx, setAudioCtx] = useState<AudioContext | null>(null);
+  // Sound unlocked inside the consent tap, so the call can start by itself once the microphone is allowed.
+  const earlyCtx = useRef<AudioContext | null>(null);
   const [errorMsg, setErrorMsg] = useState("");
   const [busy, setBusy] = useState(false);
   const requestId = useRef(typeof crypto !== "undefined" && crypto.randomUUID ? crypto.randomUUID() : `${Date.now()}-${Math.random()}`);
@@ -292,6 +294,14 @@ export default function ConversationApp({ code }: { code: string }) {
       const s = wantVideo ? await getCameraAndMic() : await getMicOnly();
       storyLog(logId, `device ok: video ${s.getVideoTracks().length}, mic ${s.getAudioTracks().length}`);
       setStream(s);
+      // Voice briefs: people allowed the microphone, then often never tapped "Start talking" (Oct 2026 logs).
+      // Start straight away when sound is already unlocked; otherwise the Start button is shown as before.
+      const ctx = earlyCtx.current;
+      if (ctx && ctx.state === "running" && !wantVideo) {
+        storyLog(logId, "auto start");
+        setAudioCtx(ctx);
+        setScreen("interview");
+      }
     } catch (e) {
       storyLog(logId, `device failed: ${(e as Error)?.name}`);
       flushStoryLog();
@@ -301,6 +311,14 @@ export default function ConversationApp({ code }: { code: string }) {
 
   const giveConsent = () => {
     if (!resp || !info) return;
+    try {
+      const Ctx = window.AudioContext || (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
+      const ctx = new Ctx();
+      unlockAudio(ctx);
+      earlyCtx.current = ctx;
+    } catch {
+      earlyCtx.current = null;
+    }
     storyApi("consent", { code: resp.code, lang, text: info.consent[lang].map((x) => "- " + x).join("\n"), userAgent: navigator.userAgent }).catch(() => {});
     setScreen("device");
     askDevice();

@@ -1115,7 +1115,8 @@ const THEME = {
   "--line": "#DCE3EE",
   "--navy": "#0B1F44",
   "--navy2": "#16336B",
-  "--teal": "#178C8C",
+  // #178C8C failed contrast on white and on teal-soft; this passes (5:1 or better) everywhere it is used.
+  "--teal": "#11706F",
   "--teal-bright": "#3CCDCD",
   "--teal-soft": "#DDF2F2",
   "--gold": "#D9A441",

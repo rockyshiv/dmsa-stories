@@ -296,7 +296,7 @@ export function HomeView({
 
       <GettingStarted adminKey={adminKey} convs={convs} people={people} orgInfo={orgInfo} go={go} />
 
-      <dl className="mt-6 grid grid-cols-2 gap-3 lg:grid-cols-4">
+      <div className="mt-6 grid grid-cols-2 gap-3 lg:grid-cols-4">
         {[
           { n: heard, l: "People heard", go: () => go("people") },
           { n: Math.round(minutes / 6) / 10, l: "Hours of conversation", go: () => go("people") },
@@ -304,11 +304,11 @@ export function HomeView({
           { n: openBriefs.length, l: "Briefs open", go: () => go("briefs") },
         ].map((x) => (
           <button key={x.l} onClick={x.go} className={`${card} px-4 py-3.5 text-left transition hover:border-[var(--teal)]`}>
-            <dt className="text-[13px] text-[var(--muted)]">{x.l}</dt>
-            <dd className="mt-0.5 font-heading text-[28px] font-bold leading-tight tabular-nums">{x.n}</dd>
+            <span className="block text-[13px] text-[var(--muted)]">{x.l}</span>
+            <span className="mt-0.5 block font-heading text-[28px] font-bold leading-tight tabular-nums">{x.n}</span>
           </button>
         ))}
-      </dl>
+      </div>
 
       <section className="mt-8">
         <h2 className="font-heading text-lg font-bold">Needs you</h2>
