@@ -142,7 +142,20 @@ function when(iso: string) {
   return isNaN(+d) ? "" : d.toLocaleString("en-IN", { day: "numeric", month: "short", hour: "numeric", minute: "2-digit" });
 }
 
-export function ConversationsView({ adminKey, toast, start }: { adminKey: string; toast: (t: string) => void; start?: View }) {
+export function ConversationsView({
+  adminKey,
+  toast,
+  start,
+  convs,
+  onConvs,
+}: {
+  adminKey: string;
+  toast: (t: string) => void;
+  start?: View;
+  /** The briefs the app already has: the list shows them at once and refreshes behind. */
+  convs?: Conv[] | null;
+  onConvs?: (c: Conv[]) => void;
+}) {
   // `start` opens a brief, a person or the builder straight away (links from Home and People).
   const [view, setView] = useState<View>(start || { kind: "list" });
   const go = (v: View) => {
@@ -165,22 +178,36 @@ export function ConversationsView({ adminKey, toast, start }: { adminKey: string
       />
     );
   if (view.kind === "resp") return <RespDetail adminKey={adminKey} id={view.respId} onBack={() => go({ kind: "conv", id: view.convId })} toast={toast} />;
-  return <ConvList adminKey={adminKey} onNew={() => go({ kind: "new" })} onOpen={(c) => go({ kind: "conv", id: c.id })} />;
+  return <ConvList adminKey={adminKey} initial={convs || null} onLoaded={onConvs} onNew={() => go({ kind: "new" })} onOpen={(c) => go({ kind: "conv", id: c.id })} />;
 }
 
 // ---------- list ----------
 
-function ConvList({ adminKey, onNew, onOpen }: { adminKey: string; onNew: () => void; onOpen: (c: Conv) => void }) {
-  const [list, setList] = useState<Conv[] | null>(null);
+function ConvList({
+  adminKey,
+  initial,
+  onLoaded,
+  onNew,
+  onOpen,
+}: {
+  adminKey: string;
+  initial: Conv[] | null;
+  onLoaded?: (c: Conv[]) => void;
+  onNew: () => void;
+  onOpen: (c: Conv) => void;
+}) {
+  const [list, setList] = useState<Conv[] | null>(initial);
   const [error, setError] = useState("");
   const load = useCallback(() => {
     storyAdmin<{ conversations: Conv[] }>("convList", adminKey, {}, 90000)
       .then((r) => {
         setList(r.conversations);
+        onLoaded?.(r.conversations);
         setError("");
       })
-      .catch(() => setError("Couldn't load conversations. Check your internet and try again."));
-  }, [adminKey]);
+      // With a list already on screen, keep showing it rather than an error.
+      .catch(() => setList((l) => { if (!l) setError("Couldn't load conversations. Check your internet and try again."); return l; }));
+  }, [adminKey]); // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => load(), [load]);
 
   return (

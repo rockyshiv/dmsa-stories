@@ -23,6 +23,7 @@ import {
   Users,
 } from "lucide-react";
 import { storyAdmin, StoryApiError } from "@/lib/story/api";
+import { readSaved, writeSaved } from "@/lib/story/saved";
 import { isStuck, missingDetails, stageOf, STATUS_WORDS, ago } from "@/lib/story/players";
 import { ConversationsView, type BriefView, type Conv } from "@/components/AdminConversations";
 import { HomeView, NewMenu, PageHeader, PeopleView, ReportsView, SettingsView, needsFollowUp } from "@/components/AdminHome";
@@ -143,10 +144,11 @@ const ALL_SECTIONS: Section[] = ["home", "briefs", "stories", "people", "reports
 const OLD_SECTIONS: Record<string, Section> = { talks: "briefs", players: "stories" };
 
 function Dashboard({ adminKey }: { adminKey: string }) {
-  const [players, setPlayers] = useState<Player[] | null>(null);
-  const [convs, setConvs] = useState<Conv[] | null>(null);
-  const [people, setPeople] = useState<Person[] | null>(null);
-  const [orgInfo, setOrgInfo] = useState<OrgInfo | null>(null);
+  // What this device loaded last time shows straight away; the server refreshes it in the background.
+  const [players, setPlayers] = useState<Player[] | null>(() => readSaved<Player[]>("players"));
+  const [convs, setConvs] = useState<Conv[] | null>(() => readSaved<Conv[]>("convs"));
+  const [people, setPeople] = useState<Person[] | null>(() => readSaved<Person[]>("people"));
+  const [orgInfo, setOrgInfo] = useState<OrgInfo | null>(() => readSaved<OrgInfo>("org"));
   const [error, setError] = useState("");
   const [refreshing, setRefreshing] = useState(false);
   const [filter, setFilter] = useState<Filter>("all");
@@ -192,25 +194,58 @@ function Dashboard({ adminKey }: { adminKey: string }) {
     }
   };
 
+  const gotPlayers = (list: Player[]) => {
+    const real = list.filter((p) => !/\(test\)/i.test(p.name));
+    setPlayers(real);
+    writeSaved("players", real);
+  };
+  const gotConvs = (c: Conv[]) => { setConvs(c); writeSaved("convs", c); };
+  const gotPeople = (p: Person[]) => { setPeople(p); writeSaved("people", p); };
+  const gotOrg = (o: OrgInfo) => { setOrgInfo(o); writeSaved("org", o); };
+  const loadFailed = (e: unknown) => {
+    if (e instanceof StoryApiError && e.code === "not_admin") return setError("This app link is no longer valid.");
+    // With saved data on screen, say so quietly instead of blocking the app.
+    if (readSaved("players")) return showToast("Couldn't refresh - showing what was loaded before");
+    setError("Couldn't load your data. Check your internet and try again.");
+  };
+
   const load = useCallback(() => {
-    // The other lists load alongside; each screen shows what has arrived.
+    // One request for everything the app needs to open (each request costs Google 2-3 s).
+    return storyAdmin<{ list: { players: Player[] } | null; convList: { conversations: Conv[] } | null; people: { people: Person[] } | null; org: OrgInfo | null }>(
+      "boot", adminKey, {}, 120000)
+      .then((r) => {
+        if (r.list) gotPlayers(r.list.players);
+        if (r.convList) gotConvs(r.convList.conversations);
+        if (r.people) gotPeople(r.people.people);
+        if (r.org) gotOrg(r.org);
+        if (!r.list) throw new Error("players did not load");
+        setError("");
+      })
+      .catch((e) => {
+        if (e instanceof StoryApiError && e.code === "not_admin") return loadFailed(e);
+        return loadSeparately();
+      })
+      .finally(() => setRefreshing(false));
+  }, [adminKey]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  /** The older way, one request per list: used if the combined request fails. */
+  const loadSeparately = () => {
     storyAdmin<{ conversations: Conv[] }>("convList", adminKey, {}, 90000)
-      .then((r) => setConvs(r.conversations))
+      .then((r) => gotConvs(r.conversations))
       .catch(() => setConvs((c) => c || []));
     storyAdmin<{ people: Person[] }>("people", adminKey, {}, 90000)
-      .then((r) => setPeople(r.people))
+      .then((r) => gotPeople(r.people))
       .catch(() => setPeople((p) => p || []));
     storyAdmin<OrgInfo>("orgGet", adminKey, {}, 90000)
-      .then(setOrgInfo)
+      .then(gotOrg)
       .catch(() => {});
     return storyAdmin<{ players: Player[] }>("list", adminKey, {}, 90000)
       .then((r) => {
-        setPlayers(r.players.filter((p) => !/\(test\)/i.test(p.name)));
+        gotPlayers(r.players);
         setError("");
       })
-      .catch((e) => setError(e instanceof StoryApiError && e.code === "not_admin" ? "This app link is no longer valid." : "Couldn't load your data. Check your internet and try again."))
-      .finally(() => setRefreshing(false));
-  }, [adminKey]);
+      .catch(loadFailed);
+  };
 
   useEffect(() => {
     load();
@@ -313,7 +348,7 @@ function Dashboard({ adminKey }: { adminKey: string }) {
               <p className="mt-3 text-sm text-[var(--muted)]">Loading…</p>
             </Center>
           )}
-          {error && (
+          {error && !players && (
             <Center>
               <p className="max-w-sm text-center">{error}</p>
               <button className="mt-5 rounded-xl bg-[var(--teal)] px-5 py-3 font-semibold text-white" onClick={() => load()}>
@@ -326,7 +361,9 @@ function Dashboard({ adminKey }: { adminKey: string }) {
             <HomeView adminKey={adminKey} players={players} convs={convs} people={people} orgInfo={orgInfo} go={go} onRead={setReading} refreshing={refreshing} onRefresh={refresh} />
           )}
 
-          {section === "briefs" && <ConversationsView key={briefStart.n} start={briefStart.view} adminKey={adminKey} toast={showToast} />}
+          {section === "briefs" && (
+            <ConversationsView key={briefStart.n} start={briefStart.view} adminKey={adminKey} toast={showToast} convs={convs} onConvs={gotConvs} />
+          )}
 
           {players && section === "people" && (
             <PeopleView key={peopleFilter || "all"} adminKey={adminKey} players={players} people={people} setPeople={setPeople} go={go} initialFilter={peopleFilter} toast={showToast} />
