@@ -196,7 +196,7 @@ export class StreamUploader {
 export async function uploadFile(
   code: string,
   file: Blob,
-  opts: { kind: "upload" | "portrait"; name: string; caption?: string },
+  opts: { kind: "upload" | "portrait" | "share"; name: string; caption?: string },
   onProgress?: (p: number) => void,
 ): Promise<DriveFile | undefined> {
   const mimeType = file.type || "application/octet-stream";

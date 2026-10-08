@@ -27,7 +27,7 @@ import {
 } from "lucide-react";
 import { ImpactCard } from "@/components/AdminImpact";
 import { storyAdmin } from "@/lib/story/api";
-import { parseConversation, type Line } from "@/components/AdminMedia";
+import { parseConversation, PhotoGrid, type Line, type MediaFile } from "@/components/AdminMedia";
 
 /**
  * Conversations in the admin app: set up Myithri for any purpose (volunteer
@@ -51,6 +51,8 @@ interface Cfg {
   language: "kn" | "en" | "hi" | "choose";
   recording: "voice" | "video";
   askPhone: boolean;
+  /** After talking, people may add a few photos and a short video. */
+  media?: boolean;
   style: "warm" | "professional";
   evaluate: boolean;
   knowledge: string;
@@ -460,6 +462,13 @@ function Builder({ adminKey, existing, onBack, onSaved }: { adminKey: string; ex
                 <label className="flex items-center gap-3 self-end rounded-lg border border-[var(--line)] px-3 py-3 text-[15px]">
                   <input type="checkbox" className="h-5 w-5 accent-[var(--teal)]" checked={!!f.askPhone} onChange={(e) => set("askPhone", e.target.checked)} />
                   Phone number required
+                </label>
+                <label className="flex items-start gap-3 rounded-lg border border-[var(--line)] px-3 py-3 text-[15px] sm:col-span-2">
+                  <input type="checkbox" className="mt-0.5 h-5 w-5 flex-none accent-[var(--teal)]" checked={!!f.media} onChange={(e) => set("media", e.target.checked)} />
+                  <span>
+                    <span className="block">People can add photos and a video</span>
+                    <span className="block text-xs text-[var(--muted)]">After talking, each person may share up to 5 photos and 1 short video. It is optional for them, and you see them on their page.</span>
+                  </span>
                 </label>
               </div>
             </Section>
@@ -932,7 +941,16 @@ interface RespFile {
   mime: string;
   size: number;
   created: string;
+  url?: string;
+  thumb?: string;
+  seconds?: number;
 }
+
+/** Photos and videos the person shared after talking (names carry " - shared "). */
+const sharedMedia = (files: RespFile[]): MediaFile[] =>
+  files
+    .filter((f) => / - shared /.test(f.name) && /^(image|video)\//.test(f.mime))
+    .map((f) => ({ ...f, url: f.url || `https://drive.google.com/file/d/${f.id}/view`, thumb: f.thumb || "", seconds: f.seconds || 0 }));
 
 function RespDetail({ adminKey, id, onBack, toast }: { adminKey: string; id: string; onBack: () => void; toast: (t: string) => void }) {
   const [r, setR] = useState<Resp | null>(null);
@@ -1084,6 +1102,14 @@ function RespDetail({ adminKey, id, onBack, toast }: { adminKey: string; id: str
                 className={`mt-3 w-full rounded-lg bg-black ${recording.mime.startsWith("video/") ? "aspect-video" : "h-24"}`}
               />
               <p className="mt-2 text-xs text-[var(--muted)]">If it asks you to sign in, use the Google account that holds the Players Impact Stories folder.</p>
+            </section>
+          )}
+          {sharedMedia(files).length > 0 && (
+            <section className="rounded-2xl border border-[var(--line)] bg-[var(--surface)] p-4">
+              <h2 className="font-heading text-[15px] font-bold">Photos and videos they shared</h2>
+              <div className="mt-3">
+                <PhotoGrid files={sharedMedia(files)} emptyText="" />
+              </div>
             </section>
           )}
           {transcript && <Transcript adminKey={adminKey} respId={r.id} fileId={transcript.id} name={r.name} />}

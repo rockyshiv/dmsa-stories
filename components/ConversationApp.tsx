@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { Camera, Check, ChevronRight, Loader2, Mic, RotateCcw } from "lucide-react";
+import { Camera, Check, ChevronRight, ImagePlus, Loader2, Mic, RotateCcw } from "lucide-react";
 import { flushStoryLog, storyApi, storyLog } from "@/lib/story/api";
 import { MYITHRI_NAME, STRINGS, type Lang } from "@/lib/story/i18n";
 import { getCameraAndMic, getMicOnly, unlockAudio } from "@/lib/story/interview";
@@ -18,8 +18,10 @@ import {
   SecondaryButton,
   SelfView,
   StickyBar,
+  UploadScreen,
   inAppBrowser,
   inRealChrome,
+  type UploadLimits,
 } from "@/components/InterviewApp";
 
 /**
@@ -41,9 +43,14 @@ interface Info {
   liveModels: number;
   /** The organisation's short name (Settings). */
   org?: string;
+  /** People may add a few photos and a short video after talking (brief setting). */
+  media?: boolean;
+  mediaLimits?: UploadLimits;
 }
 
-type Screen = "loading" | "invalid" | "closed" | "welcome" | "consent" | "device" | "interview" | "saving" | "thanks" | "done" | "error";
+type Screen = "loading" | "invalid" | "closed" | "welcome" | "consent" | "device" | "interview" | "saving" | "share" | "thanks" | "done" | "error";
+
+const SHARE_DEFAULTS: UploadLimits = { photos: 5, videos: 1, videoMB: 300 };
 
 const T = {
   en: {
@@ -81,6 +88,11 @@ const T = {
     needName: "Please write your name.",
     needPhone: "Please write your 10-digit phone number.",
     role: (type: string, org: string) => (type === "interview" ? `${org}'s AI interviewer` : `${org}'s AI volunteer`),
+    shareTitle: "Add photos or a video (optional)",
+    shareHelp: (org: string, l: UploadLimits) =>
+      `If you like, share up to ${l.photos} photos and ${l.videos === 1 ? "one short video" : l.videos + " short videos"} about what you talked about. Only ${org} will see them. You can skip this.`,
+    shareLimit: (l: UploadLimits) => `You can share up to ${l.photos} photos and ${l.videos} video (under ${l.videoMB} MB). Some of what you picked was not added.`,
+    addMedia: "Add photos or a video",
     copy: {
       saving: "Saving your conversation…",
       savingHelp: "Please keep this page open. It takes a few seconds.",
@@ -125,6 +137,11 @@ const T = {
     needName: "ದಯವಿಟ್ಟು ನಿಮ್ಮ ಹೆಸರು ಬರೆಯಿರಿ.",
     needPhone: "ದಯವಿಟ್ಟು 10 ಅಂಕಿಯ ಫೋನ್ ಸಂಖ್ಯೆ ಬರೆಯಿರಿ.",
     role: (type: string, org: string) => (type === "interview" ? `${org} ಯ AI ಸಂದರ್ಶಕಿ` : `${org} ಯ AI ಸ್ವಯಂಸೇವಕಿ`),
+    shareTitle: "ಫೋಟೋ ಅಥವಾ ವೀಡಿಯೊ ಸೇರಿಸಿ (ಐಚ್ಛಿಕ)",
+    shareHelp: (org: string, l: UploadLimits) =>
+      `ಬಯಸಿದರೆ, ನೀವು ಮಾತನಾಡಿದ ವಿಷಯದ ಬಗ್ಗೆ ${l.photos} ಫೋಟೋಗಳವರೆಗೆ ಮತ್ತು ಒಂದು ಚಿಕ್ಕ ವೀಡಿಯೊ ಹಂಚಿಕೊಳ್ಳಿ. ಇವುಗಳನ್ನು ${org} ಮಾತ್ರ ನೋಡುತ್ತದೆ. ಬೇಡವಾದರೆ ಬಿಡಬಹುದು.`,
+    shareLimit: (l: UploadLimits) => `${l.photos} ಫೋಟೋ ಮತ್ತು ${l.videos} ವೀಡಿಯೊ (${l.videoMB} MB ಒಳಗೆ) ಮಾತ್ರ ಹಂಚಿಕೊಳ್ಳಬಹುದು. ನೀವು ಆಯ್ಕೆ ಮಾಡಿದ ಕೆಲವು ಸೇರಿಲ್ಲ.`,
+    addMedia: "ಫೋಟೋ ಅಥವಾ ವೀಡಿಯೊ ಸೇರಿಸಿ",
     copy: {
       saving: "ನಿಮ್ಮ ಮಾತುಕತೆ ಉಳಿಸಲಾಗುತ್ತಿದೆ…",
       savingHelp: "ದಯವಿಟ್ಟು ಈ ಪುಟ ತೆರೆದಿಡಿ. ಕೆಲವೇ ಸೆಕೆಂಡು.",
@@ -169,6 +186,11 @@ const T = {
     needName: "कृपया अपना नाम लिखें।",
     needPhone: "कृपया 10 अंकों का फ़ोन नंबर लिखें।",
     role: (type: string, org: string) => (type === "interview" ? `${org} की AI इंटरव्यूअर` : `${org} की AI स्वयंसेवक`),
+    shareTitle: "फ़ोटो या वीडियो जोड़ें (ज़रूरी नहीं)",
+    shareHelp: (org: string, l: UploadLimits) =>
+      `चाहें तो, जिस बारे में बात की उससे जुड़ी ${l.photos} फ़ोटो तक और एक छोटा वीडियो साझा करें। इन्हें सिर्फ़ ${org} देखेगा। आप इसे छोड़ भी सकते हैं।`,
+    shareLimit: (l: UploadLimits) => `आप ${l.photos} फ़ोटो और ${l.videos} वीडियो (${l.videoMB} MB से कम) तक ही साझा कर सकते हैं। आपकी चुनी कुछ चीज़ें नहीं जोड़ी गईं।`,
+    addMedia: "फ़ोटो या वीडियो जोड़ें",
     copy: {
       saving: "आपकी बातचीत सेव हो रही है…",
       savingHelp: "कृपया यह पेज खुला रखें। कुछ ही सेकंड लगेंगे।",
@@ -528,7 +550,7 @@ export default function ConversationApp({ code }: { code: string }) {
           onEnding={() => setScreen("saving")}
           onSaved={() => {
             stream.getTracks().forEach((tr) => tr.stop());
-            setScreen("thanks");
+            setScreen(info.media ? "share" : "thanks");
           }}
           onFatal={(m) => {
             setErrorMsg(m);
@@ -545,6 +567,19 @@ export default function ConversationApp({ code }: { code: string }) {
             },
           }}
           copy={{ ...c.copy, maitriRole: c.role(info.type, info.org || "DMSA") }}
+        />
+      )}
+
+      {screen === "share" && info && resp && (
+        <UploadScreen
+          code={resp.code}
+          lang={lang}
+          kind="share"
+          title={c.shareTitle}
+          help={c.shareHelp(info.org || "DMSA", info.mediaLimits || SHARE_DEFAULTS)}
+          limits={info.mediaLimits || SHARE_DEFAULTS}
+          limitNote={c.shareLimit(info.mediaLimits || SHARE_DEFAULTS)}
+          onDone={() => setScreen("thanks")}
         />
       )}
 
@@ -566,6 +601,11 @@ export default function ConversationApp({ code }: { code: string }) {
             <Check className="h-9 w-9 text-white" />
           </div>
           <p className="mt-6 max-w-md text-center text-lg leading-relaxed text-navy-100">{c.doneBefore}</p>
+          {info?.media && resp && (
+            <PrimaryButton onClick={() => setScreen("share")}>
+              <ImagePlus className="h-5 w-5" /> {c.addMedia}
+            </PrimaryButton>
+          )}
           <SecondaryButton onClick={takePartAgain}>
             <RotateCcw className="h-5 w-5" /> {c.again}
           </SecondaryButton>

@@ -692,9 +692,40 @@ export function InterviewScreen({
   );
 }
 
-function UploadScreen({ code, lang, onDone }: { code: string; lang: Lang; onDone: () => void }) {
+/** Limits for what one person may add (brief pages); player stories have none. */
+export interface UploadLimits {
+  photos: number;
+  videos: number;
+  videoMB: number;
+}
+
+/**
+ * Photos and videos from the phone, uploaded one at a time straight to Drive.
+ * Player stories use it as is; brief pages pass kind "share", their own words and limits.
+ */
+export function UploadScreen({
+  code,
+  lang,
+  onDone,
+  kind = "upload",
+  title,
+  help,
+  limits,
+  limitNote,
+}: {
+  code: string;
+  lang: Lang;
+  onDone: () => void;
+  kind?: "upload" | "share";
+  title?: string;
+  help?: string;
+  limits?: UploadLimits;
+  /** Shown when someone picks more than the limits allow. */
+  limitNote?: string;
+}) {
   const t = STRINGS[lang];
   const [items, setItems] = useState<UploadItem[]>([]);
+  const [note, setNote] = useState("");
   const busy = useRef(false);
   const inputRef = useRef<HTMLInputElement>(null);
 
@@ -711,10 +742,13 @@ function UploadScreen({ code, lang, onDone }: { code: string; lang: Lang; onDone
       const item = next;
       update(item.key, { state: "uploading", progress: 0 });
       try {
-        await uploadFile(code, item.file, { kind: "upload", name: item.file.name }, (p) => update(item.key, { progress: p }));
+        await uploadFile(code, item.file, { kind, name: item.file.name }, (p) => update(item.key, { progress: p }));
         update(item.key, { state: "done", progress: 1 });
-      } catch {
+      } catch (e) {
         update(item.key, { state: "failed" });
+        // The server explains limits in plain words ("You have already shared a video").
+        const m = String((e as Error)?.message || "");
+        if (kind === "share" && m && !/fetch|network|Drive/i.test(m)) setNote(m);
       }
     }
     busy.current = false;
@@ -730,7 +764,26 @@ function UploadScreen({ code, lang, onDone }: { code: string; lang: Lang; onDone
 
   const add = (files: FileList | null) => {
     if (!files) return;
-    const fresh = Array.from(files).map((f) => ({
+    let picked = Array.from(files).filter((f) => f.type.startsWith("image/") || f.type.startsWith("video/"));
+    if (limits) {
+      // Keep within the limits: what is already on the list counts, failed uploads do not.
+      const kept = items.filter((x) => x.state !== "failed");
+      let photos = kept.filter((x) => x.file.type.startsWith("image/")).length;
+      let videos = kept.filter((x) => x.file.type.startsWith("video/")).length;
+      const before = picked.length;
+      picked = picked.filter((f) => {
+        if (f.type.startsWith("video/")) {
+          if (videos >= limits.videos || f.size > limits.videoMB * 1e6) return false;
+          videos++;
+          return true;
+        }
+        if (photos >= limits.photos) return false;
+        photos++;
+        return true;
+      });
+      setNote(picked.length < before ? limitNote || "" : "");
+    }
+    const fresh = picked.map((f) => ({
       key: `${++counter.current}-${f.name}`,
       file: f,
       preview: f.type.startsWith("image/") ? URL.createObjectURL(f) : undefined,
@@ -747,9 +800,24 @@ function UploadScreen({ code, lang, onDone }: { code: string; lang: Lang; onDone
   return (
     <Page>
       <Logo />
-      <h1 className="mt-8 font-heading text-2xl font-bold">{t.uploadTitle}</h1>
-      <p className="mt-3 text-base leading-relaxed text-navy-100">{t.uploadHelp}</p>
-      <input ref={inputRef} type="file" accept="image/*,video/*" multiple className="hidden" onChange={(e) => add(e.target.files)} />
+      <h1 className="mt-8 font-heading text-2xl font-bold">{title || t.uploadTitle}</h1>
+      <p className="mt-3 text-base leading-relaxed text-navy-100">{help || t.uploadHelp}</p>
+      <input
+        ref={inputRef}
+        type="file"
+        accept="image/*,video/*"
+        multiple
+        className="hidden"
+        onChange={(e) => {
+          add(e.target.files);
+          e.target.value = ""; // the same file can be picked again after a failure
+        }}
+      />
+      {note && (
+        <p className="mt-4 rounded-xl bg-gold-500/15 p-3 text-sm text-gold-100" role="status">
+          {note}
+        </p>
+      )}
       <PrimaryButton onClick={() => inputRef.current?.click()}>
         <ImagePlus className="h-5 w-5" /> {t.choose}
       </PrimaryButton>
