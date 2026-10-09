@@ -18,6 +18,8 @@ import {
   HeartPulse,
   ImageUp,
   Loader2,
+  LogOut,
+  Mail,
   MessageCircle,
   MessageCircleQuestion,
   MessagesSquare,
@@ -33,6 +35,7 @@ import {
   UserPlus,
 } from "lucide-react";
 import { storyAdmin } from "@/lib/story/api";
+import { APP_VERSION, MAKER, SUPPORT_EMAIL } from "@/lib/story/brand";
 import { initials, isStuck, missingDetails, stageOf, STATUS_WORDS } from "@/lib/story/players";
 import type { Player } from "@/components/AdminApp";
 import type { BriefView, Conv } from "@/components/AdminConversations";
@@ -97,6 +100,7 @@ export interface Person {
 /** Someone who asked something or should hear back, and it hasn't been handled yet. */
 export const needsFollowUp = (p: Person) => !p.followedUp && (p.unanswered.length > 0 || !!p.followUp.trim());
 
+const BASE = process.env.NEXT_PUBLIC_BASE_PATH || "";
 const card = "rounded-2xl border border-[var(--line)] bg-[var(--surface)]";
 
 export function PageHeader({ title, subtitle, actions }: { title: string; subtitle?: string; actions?: React.ReactNode }) {
@@ -665,7 +669,21 @@ const ORG_FIELDS: { key: keyof Org; label: string; hint: string; area?: boolean;
   { key: "contact", label: "Contact line", hint: "Name, phone, email and website, printed in report footers.", area: true },
 ];
 
-export function SettingsView({ adminKey, orgInfo, setOrgInfo, toast }: { adminKey: string; orgInfo: OrgInfo | null; setOrgInfo: (o: OrgInfo) => void; toast: (t: string) => void }) {
+export function SettingsView({
+  adminKey,
+  orgInfo,
+  setOrgInfo,
+  toast,
+  onSignOut,
+  demo,
+}: {
+  adminKey: string;
+  orgInfo: OrgInfo | null;
+  setOrgInfo: (o: OrgInfo) => void;
+  toast: (t: string) => void;
+  onSignOut: () => void;
+  demo?: boolean;
+}) {
   const [f, setF] = useState<Org | null>(orgInfo?.org || null);
   const [saving, setSaving] = useState(false);
   const [logoBusy, setLogoBusy] = useState(false);
@@ -832,7 +850,37 @@ export function SettingsView({ adminKey, orgInfo, setOrgInfo, toast }: { adminKe
         <SystemCheck adminKey={adminKey} />
       </div>
 
-      <p className="mt-8 text-center text-xs text-[var(--muted)]">Myithri by Auraclusive</p>
+      <section className={`${card} mt-5 p-5`}>
+        <h2 className="font-heading text-lg font-bold">This app</h2>
+        <ul className="mt-3 divide-y divide-[var(--line)] text-[15px]">
+          <li>
+            <a href={`${BASE}/privacy/`} className="flex items-center gap-3 py-3 font-semibold">
+              <ShieldCheck className="h-5 w-5 text-[var(--muted)]" aria-hidden /> <span className="flex-1">Privacy policy</span>
+              <ChevronRight className="h-4 w-4 text-[var(--muted)]" aria-hidden />
+            </a>
+          </li>
+          <li>
+            <a href={`mailto:${SUPPORT_EMAIL}?subject=${encodeURIComponent("Myithri help")}`} className="flex items-center gap-3 py-3 font-semibold">
+              <Mail className="h-5 w-5 text-[var(--muted)]" aria-hidden /> <span className="flex-1">Help, feedback or deleting your data</span>
+              <ChevronRight className="h-4 w-4 text-[var(--muted)]" aria-hidden />
+            </a>
+          </li>
+          <li>
+            <button
+              onClick={() => {
+                if (demo || confirm("Sign out of Myithri on this device? You'll need your access link to open it again.")) onSignOut();
+              }}
+              className="flex w-full items-center gap-3 py-3 text-left font-semibold text-[var(--alert)]"
+            >
+              <LogOut className="h-5 w-5" aria-hidden /> {demo ? "Leave the demo" : "Sign out of this device"}
+            </button>
+          </li>
+        </ul>
+      </section>
+
+      <p className="mt-8 text-center text-xs text-[var(--muted)]">
+        Myithri by {MAKER} · version {APP_VERSION}
+      </p>
 
       {dirty && (
         <div className="fixed inset-x-0 bottom-16 z-30 border-t border-[var(--line)] bg-[var(--surface)]/95 px-4 py-3 backdrop-blur lg:bottom-0 lg:left-[248px]">

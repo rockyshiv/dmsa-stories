@@ -15,6 +15,17 @@ export function readSaved<T>(name: string): T | null {
   }
 }
 
+/** Forgets everything kept on this device (signing out). */
+export function clearSaved() {
+  try {
+    Object.keys(localStorage)
+      .filter((k) => k.startsWith(PREFIX))
+      .forEach((k) => localStorage.removeItem(k));
+  } catch {
+    /* nothing was saved */
+  }
+}
+
 export function writeSaved(name: string, value: unknown) {
   try {
     localStorage.setItem(PREFIX + name, JSON.stringify(value));

@@ -27,6 +27,7 @@ import {
 } from "lucide-react";
 import { ImpactCard } from "@/components/AdminImpact";
 import { storyAdmin } from "@/lib/story/api";
+import { ReportContent } from "@/components/ReportContent";
 import { parseConversation, PhotoGrid, type Line, type MediaFile } from "@/components/AdminMedia";
 
 /**
@@ -698,7 +699,7 @@ function ConvDetail({
                 role="tab"
                 aria-selected={tab === k}
                 onClick={() => setTab(k)}
-                className={`rounded-lg py-2 text-sm font-semibold transition ${tab === k ? "bg-[var(--surface)] shadow" : "text-[var(--muted)]"}`}
+                className={`rounded-lg py-2 text-sm font-semibold transition ${tab === k ? "bg-[var(--surface)] shadow" : "text-[var(--ink)]/80"}`}
               >
                 {k === "people" ? `People (${c.counts.total})` : "Insights"}
               </button>
@@ -897,6 +898,7 @@ function InsightsPanel({ adminKey, conv, toast }: { adminKey: string; conv: Conv
           <section className="rounded-2xl border border-[var(--line)] bg-[var(--surface)] p-4">
             <h3 className="font-heading text-[15px] font-bold">Overview</h3>
             <p className="mt-2 text-[15px] leading-relaxed">{ins.overview}</p>
+            <ReportContent adminKey={adminKey} what="These insights" id={conv.id} toast={toast} className="mt-3" />
           </section>
           {ins.themes.length > 0 && (
             <section className="rounded-2xl border border-[var(--line)] bg-[var(--surface)] p-4">
@@ -1067,6 +1069,7 @@ function RespDetail({ adminKey, id, onBack, toast }: { adminKey: string; id: str
                 </div>
                 <p className="mt-2 text-[15px] leading-relaxed">{a.summary}</p>
                 {a.follow_up && <p className="mt-3 rounded-lg bg-[var(--gold-soft)] p-3 text-sm text-[#7D5A1E]">Follow up: {a.follow_up}</p>}
+                <ReportContent adminKey={adminKey} what="This summary" id={r.id} toast={toast} className="mt-3" />
               </section>
 
               {a.criteria && a.criteria.length > 0 && (

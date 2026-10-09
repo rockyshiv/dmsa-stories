@@ -23,7 +23,9 @@ import {
   Users,
 } from "lucide-react";
 import { storyAdmin, StoryApiError } from "@/lib/story/api";
-import { readSaved, writeSaved } from "@/lib/story/saved";
+import { clearSaved, readSaved, writeSaved } from "@/lib/story/saved";
+import { DEMO_KEY, isDemo } from "@/lib/story/demo";
+import { SUPPORT_EMAIL } from "@/lib/story/brand";
 import { isStuck, missingDetails, stageOf, STATUS_WORDS, ago } from "@/lib/story/players";
 import { ConversationsView, type BriefView, type Conv } from "@/components/AdminConversations";
 import { HomeView, NewMenu, PageHeader, PeopleView, ReportsView, SettingsView, needsFollowUp } from "@/components/AdminHome";
@@ -84,7 +86,11 @@ const FILTERS: { id: Filter; label: string; test: (p: Player) => boolean }[] = [
 
 // ---------- private key from the app link ----------
 
+const KEY_EVENT = "myithri-key";
+
 function readKey(): string | null {
+  // "#demo" opens the sample-data demo without touching a saved key.
+  if (/^#demo\b/.test(window.location.hash)) return DEMO_KEY;
   const m = window.location.hash.match(/k=([\w-]+)/);
   if (m) return m[1];
   try {
@@ -94,12 +100,40 @@ function readKey(): string | null {
   }
 }
 
+function subscribeKey(changed: () => void) {
+  window.addEventListener("hashchange", changed);
+  window.addEventListener(KEY_EVENT, changed);
+  return () => {
+    window.removeEventListener("hashchange", changed);
+    window.removeEventListener(KEY_EVENT, changed);
+  };
+}
+
+/** Signs this device in (a key), into the demo (DEMO_KEY) or out (null). */
+export function signIn(key: string | null) {
+  try {
+    if (key && !isDemo(key)) localStorage.setItem(KEY_STORE, key);
+    if (!key) {
+      localStorage.removeItem(KEY_STORE);
+      clearSaved();
+    }
+  } catch {
+    /* private mode: the key lasts for this visit */
+  }
+  history.replaceState(null, "", window.location.pathname + (isDemo(key) ? "#demo" : ""));
+  window.dispatchEvent(new Event(KEY_EVENT));
+  window.scrollTo(0, 0);
+}
+
+/** An access link (…/admin/#k=…) or the key on its own, as pasted. */
+function keyFromText(text: string): string | null {
+  const t = text.trim();
+  const m = t.match(/[#&]k=([\w-]+)/) || t.match(/^([\w-]{16,})$/);
+  return m ? m[1] : null;
+}
+
 export default function AdminApp() {
-  const key = useSyncExternalStore(
-    () => () => {},
-    readKey,
-    () => undefined,
-  );
+  const key = useSyncExternalStore(subscribeKey, readKey, () => undefined);
 
   // Remember the key from the link, then drop it from the address bar.
   useEffect(() => {
@@ -116,18 +150,90 @@ export default function AdminApp() {
   }, []);
 
   if (key === undefined) return <Shell />;
-  if (!key) {
-    return (
-      <Shell>
-        <Center>
-          <Logo />
-          <p className="mt-8 max-w-sm text-center text-lg font-semibold">Open the app with your private Player Stories link.</p>
-          <p className="mt-2 max-w-sm text-center text-sm text-[var(--muted)]">It is the link that ends with #k=…</p>
-        </Center>
-      </Shell>
-    );
-  }
-  return <Dashboard adminKey={key} />;
+  if (!key) return <Welcome />;
+  return <Dashboard key={key} adminKey={key} />;
+}
+
+// ---------- first screen for someone who isn't signed in ----------
+
+function Welcome() {
+  const [text, setText] = useState("");
+  const [bad, setBad] = useState(false);
+  const open = (e: React.FormEvent) => {
+    e.preventDefault();
+    const k = keyFromText(text);
+    if (!k) return setBad(true);
+    signIn(k);
+  };
+  return (
+    <Shell>
+      <main className="mx-auto flex min-h-dvh max-w-md flex-col px-6 pb-8 pt-[max(2.5rem,env(safe-area-inset-top))]">
+        <div className="flex items-center gap-3">
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src={`${BASE}/myithri-small.webp`} alt="" className="h-12 w-12 rounded-full bg-[var(--teal-soft)] object-cover" />
+          <div>
+            <p className="font-heading text-xl font-bold leading-tight">Myithri</p>
+            <p className="text-xs text-[var(--muted)]">by Auraclusive</p>
+          </div>
+        </div>
+
+        <h1 className="mt-10 font-heading text-[28px] font-bold leading-[1.15]">Hear everyone. Report what changed.</h1>
+        <p className="mt-3 text-[15px] leading-relaxed text-[var(--muted)]">
+          Myithri, an AI voice assistant, talks with the people your organisation serves in English, Hindi or Kannada. Their stories, summaries and impact reports
+          come back to you here.
+        </p>
+
+        <form onSubmit={open} className="mt-8 rounded-2xl border border-[var(--line)] bg-[var(--surface)] p-5">
+          <label htmlFor="access" className="block font-semibold">
+            Open your organisation
+          </label>
+          <p className="mt-1 text-sm text-[var(--muted)]">Paste the access link Auraclusive sent you.</p>
+          <input
+            id="access"
+            value={text}
+            onChange={(e) => {
+              setText(e.target.value);
+              setBad(false);
+            }}
+            placeholder="https://…/admin/#k=…"
+            autoComplete="off"
+            spellCheck={false}
+            aria-invalid={bad}
+            aria-describedby={bad ? "access-error" : undefined}
+            className="mt-3 w-full rounded-xl border border-[var(--line)] bg-[var(--bg)] px-3 py-3 text-base outline-none focus:border-[var(--teal)]"
+          />
+          {bad && (
+            <p id="access-error" className="mt-2 text-sm text-[var(--alert)]">
+              That doesn&apos;t look like an access link. It ends with #k= and a long code.
+            </p>
+          )}
+          <button type="submit" className="mt-3 w-full rounded-xl bg-[var(--navy)] px-4 py-3 font-semibold text-white transition hover:bg-[var(--navy2)]">
+            Open
+          </button>
+        </form>
+
+        <button
+          onClick={() => signIn(DEMO_KEY)}
+          className="mt-4 flex w-full items-center justify-center gap-2 rounded-xl border border-[var(--line)] bg-[var(--surface)] px-4 py-3 font-semibold transition hover:border-[var(--teal)]"
+        >
+          <Sparkles className="h-4 w-4 text-[var(--teal)]" /> See a demo with sample data
+        </button>
+
+        <div className="flex-1" />
+        <p className="mt-10 text-center text-sm text-[var(--muted)]">
+          New to Myithri? Write to{" "}
+          <a href={`mailto:${SUPPORT_EMAIL}`} className="font-semibold text-[var(--teal)] underline-offset-4 hover:underline">
+            {SUPPORT_EMAIL}
+          </a>
+        </p>
+        <p className="mt-2 text-center text-xs">
+          <a href={`${BASE}/privacy/`} className="text-[var(--muted)] underline underline-offset-4">
+            Privacy policy
+          </a>
+        </p>
+      </main>
+    </Shell>
+  );
 }
 
 // ---------- dashboard ----------
@@ -144,11 +250,17 @@ const ALL_SECTIONS: Section[] = ["home", "briefs", "stories", "people", "reports
 const OLD_SECTIONS: Record<string, Section> = { talks: "briefs", players: "stories" };
 
 function Dashboard({ adminKey }: { adminKey: string }) {
+  // The demo never mixes with the organisation's own data kept on this device.
+  const demo = isDemo(adminKey);
+  const saved = <T,>(name: string) => (demo ? null : readSaved<T>(name));
+  const save = (name: string, value: unknown) => {
+    if (!demo) writeSaved(name, value);
+  };
   // What this device loaded last time shows straight away; the server refreshes it in the background.
-  const [players, setPlayers] = useState<Player[] | null>(() => readSaved<Player[]>("players"));
-  const [convs, setConvs] = useState<Conv[] | null>(() => readSaved<Conv[]>("convs"));
-  const [people, setPeople] = useState<Person[] | null>(() => readSaved<Person[]>("people"));
-  const [orgInfo, setOrgInfo] = useState<OrgInfo | null>(() => readSaved<OrgInfo>("org"));
+  const [players, setPlayers] = useState<Player[] | null>(() => saved<Player[]>("players"));
+  const [convs, setConvs] = useState<Conv[] | null>(() => saved<Conv[]>("convs"));
+  const [people, setPeople] = useState<Person[] | null>(() => saved<Person[]>("people"));
+  const [orgInfo, setOrgInfo] = useState<OrgInfo | null>(() => saved<OrgInfo>("org"));
   const [error, setError] = useState("");
   const [refreshing, setRefreshing] = useState(false);
   const [filter, setFilter] = useState<Filter>("all");
@@ -197,15 +309,15 @@ function Dashboard({ adminKey }: { adminKey: string }) {
   const gotPlayers = (list: Player[]) => {
     const real = list.filter((p) => !/\(test\)/i.test(p.name));
     setPlayers(real);
-    writeSaved("players", real);
+    save("players", real);
   };
-  const gotConvs = (c: Conv[]) => { setConvs(c); writeSaved("convs", c); };
-  const gotPeople = (p: Person[]) => { setPeople(p); writeSaved("people", p); };
-  const gotOrg = (o: OrgInfo) => { setOrgInfo(o); writeSaved("org", o); };
+  const gotConvs = (c: Conv[]) => { setConvs(c); save("convs", c); };
+  const gotPeople = (p: Person[]) => { setPeople(p); save("people", p); };
+  const gotOrg = (o: OrgInfo) => { setOrgInfo(o); save("org", o); };
   const loadFailed = (e: unknown) => {
-    if (e instanceof StoryApiError && e.code === "not_admin") return setError("This app link is no longer valid.");
+    if (e instanceof StoryApiError && e.code === "not_admin") return setError("This access link is no longer valid. Ask Auraclusive for a new one, or sign out.");
     // With saved data on screen, say so quietly instead of blocking the app.
-    if (readSaved("players")) return showToast("Couldn't refresh - showing what was loaded before");
+    if (saved("players")) return showToast("Couldn't refresh - showing what was loaded before");
     setError("Couldn't load your data. Check your internet and try again.");
   };
 
@@ -348,11 +460,25 @@ function Dashboard({ adminKey }: { adminKey: string }) {
               <p className="mt-3 text-sm text-[var(--muted)]">Loading…</p>
             </Center>
           )}
+          {demo && (
+            <div className="flex items-center gap-3 border-b border-[var(--gold)]/40 bg-[var(--gold-soft)] px-4 py-2.5 text-sm lg:px-8">
+              <Sparkles className="h-4 w-4 flex-none text-[var(--ink)]" aria-hidden />
+              <p className="min-w-0 flex-1">
+                <span className="font-semibold">Demo with sample data.</span> The people and stories here are made up.
+              </p>
+              <button onClick={() => signIn(null)} className="flex-none rounded-lg border border-[var(--ink)]/20 bg-[var(--surface)] px-3 py-1.5 text-[13px] font-semibold">
+                Leave demo
+              </button>
+            </div>
+          )}
           {error && !players && (
             <Center>
               <p className="max-w-sm text-center">{error}</p>
               <button className="mt-5 rounded-xl bg-[var(--teal)] px-5 py-3 font-semibold text-white" onClick={() => load()}>
                 Try again
+              </button>
+              <button className="mt-3 text-sm font-semibold text-[var(--muted)] underline underline-offset-4" onClick={() => signIn(null)}>
+                Sign out
               </button>
             </Center>
           )}
@@ -371,7 +497,7 @@ function Dashboard({ adminKey }: { adminKey: string }) {
 
           {section === "reports" && <ReportsView adminKey={adminKey} convs={convs} toast={showToast} />}
 
-          {section === "settings" && <SettingsView adminKey={adminKey} orgInfo={orgInfo} setOrgInfo={setOrgInfo} toast={showToast} />}
+          {section === "settings" && <SettingsView adminKey={adminKey} orgInfo={orgInfo} setOrgInfo={setOrgInfo} toast={showToast} onSignOut={() => signIn(null)} demo={demo} />}
 
           {players && section === "stories" && (
             <>
@@ -1126,17 +1252,6 @@ function TextButton({ onClick, label }: { onClick: () => void; label: string }) 
     <button onClick={onClick} className="font-semibold text-[var(--teal)] underline-offset-4 hover:underline">
       {label}
     </button>
-  );
-}
-
-function Logo({ small }: { small?: boolean }) {
-  return (
-    // eslint-disable-next-line @next/next/no-img-element
-    <img
-      src={small ? `${BASE}/admin-icons/icon-192.png` : `${BASE}/dmsa-logo.png`}
-      alt="DMSA"
-      className={small ? "h-9 w-9 rounded-lg" : "h-12 rounded-lg bg-white px-3 py-2"}
-    />
   );
 }
 

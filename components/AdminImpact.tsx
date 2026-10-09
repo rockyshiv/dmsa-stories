@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { AlertTriangle, ArrowLeft, BarChart3, Download, Loader2, Pencil, RefreshCw, Share2 } from "lucide-react";
 import { storyAdmin } from "@/lib/story/api";
 import { download, GImg } from "@/components/AdminMedia";
+import { ReportContent } from "@/components/ReportContent";
 
 /**
  * The impact report: one PDF for donors, CSR partners and the team, made from
@@ -316,6 +317,11 @@ function ImpactReader({
           {pages?.map((src, i) => (
             <GImg key={src} src={src} alt={`Page ${i + 1}`} className="w-full rounded-md bg-white shadow-[0_20px_40px_-20px_rgba(0,0,0,0.8)]" />
           ))}
+          {!!pages?.length && (
+            <div className="pb-2 pt-1 text-center">
+              <ReportContent adminKey={adminKey} what="This report" id={conv || "stories"} toast={toast} dark />
+            </div>
+          )}
         </div>
       </div>
 
@@ -327,9 +333,11 @@ function ImpactReader({
           <button onClick={save} disabled={!!work} aria-label="Download PDF" className="flex items-center justify-center rounded-xl bg-white/10 px-4 text-white disabled:opacity-60">
             {work === "download" ? <Loader2 className="h-5 w-5 animate-spin" /> : <Download className="h-5 w-5" />}
           </button>
-          <a href={report.deckUrl} target="_blank" rel="noreferrer" aria-label="Edit in Google Slides" className="flex items-center justify-center rounded-xl bg-white/10 px-4 text-white">
-            <Pencil className="h-5 w-5" />
-          </a>
+          {report.deckUrl && (
+            <a href={report.deckUrl} target="_blank" rel="noreferrer" aria-label="Edit in Google Slides" className="flex items-center justify-center rounded-xl bg-white/10 px-4 text-white">
+              <Pencil className="h-5 w-5" />
+            </a>
+          )}
         </div>
       </footer>
     </div>

@@ -11,7 +11,7 @@ export const metadata: Metadata = {
   appleWebApp: { capable: true, title: "Myithri", statusBarStyle: "black-translucent" },
 };
 
-export const viewport: Viewport = { themeColor: "#081733" };
+export const viewport: Viewport = { themeColor: "#0B1F44" };
 
 export default function AdminPage() {
   return <AdminApp />;

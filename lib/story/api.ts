@@ -6,6 +6,8 @@
  * requests; Apps Script cannot answer a CORS preflight.
  */
 
+import { demoAdmin, isDemo } from "./demo";
+
 export const STORY_API_URL =
   "https://script.google.com/macros/s/AKfycbxr3rMvC4RcSpfFYnPYYQnFPCjNb-bzSxyc4pS4ZRBnI44Zc6LP_hu8GiQAMg2Ept_y/exec";
 
@@ -99,5 +101,7 @@ export function flushStoryLog(beacon = false) {
 const SAFE_TO_REPEAT = new Set(["boot", "people", "orgGet", "convLog", "convInsights", "list", "files", "media", "text", "blob", "storyPages", "registrations", "autoStories", "diagnostics", "fileData", "storyStart", "storyJob", "health", "convList", "convGet", "convTemplates", "convResponse", "convText", "convAnalyse", "convStatus", "convSave", "convTidy", "convDocRemove", "impactStatus", "impactStart", "impactPdf", "update", "approve", "markSent"]);
 
 export function storyAdmin<T = Record<string, unknown>>(op: string, key: string, body: Record<string, unknown> = {}, timeoutMs = 60000) {
+  // The demo answers from made-up sample data and never reaches the server.
+  if (isDemo(key)) return demoAdmin<T>(op, body);
   return storyApi<T>("admin", { op, key, ...body }, SAFE_TO_REPEAT.has(op) ? 3 : 1, timeoutMs);
 }

@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { ArrowLeft, BookOpen, ChevronDown, ChevronUp, Download, ImageIcon, Loader2, Pencil, Play, Share2, Sparkles, X } from "lucide-react";
 import { storyAdmin } from "@/lib/story/api";
+import { ReportContent } from "@/components/ReportContent";
 import type { Player } from "@/components/AdminApp";
 
 /**
@@ -38,7 +39,9 @@ interface StoryPages {
 }
 
 /** Drive thumbnails end in "=s220"; ask for a bigger one. */
-export const sized = (thumb: string, px: number) => (thumb ? thumb.replace(/=s\d+(-[a-z0-9-]+)?$/i, "") + `=s${px}` : "");
+// Only Google's image addresses take a size; the demo's own pictures are used as they are.
+export const sized = (thumb: string, px: number) =>
+  !thumb ? "" : !/^https:\/\/[^/]*google/.test(thumb) ? thumb : thumb.replace(/=s\d+(-[a-z0-9-]+)?$/i, "") + `=s${px}`;
 
 /**
  * A Google-hosted image (Drive thumbnail, story page). Google sometimes
@@ -47,7 +50,8 @@ export const sized = (thumb: string, px: number) => (thumb ? thumb.replace(/=s\d
  */
 export function GImg({ src, ...rest }: React.ImgHTMLAttributes<HTMLImageElement> & { src: string }) {
   const [attempt, setAttempt] = useState(0);
-  const url = attempt === 0 ? src : `${src}-rw${attempt > 1 ? "#" + attempt : ""}`;
+  const google = /^https:\/\/[^/]*google/.test(src);
+  const url = attempt === 0 || !google ? src : `${src}-rw${attempt > 1 ? "#" + attempt : ""}`;
   return (
     // eslint-disable-next-line @next/next/no-img-element, jsx-a11y/alt-text
     <img
@@ -422,6 +426,11 @@ export function StoryReader({
           {current?.pages.map((src, i) => (
             <GImg key={src} src={src} alt={`Page ${i + 1}`} className="w-full rounded-md bg-white shadow-[0_20px_40px_-20px_rgba(0,0,0,0.8)]" />
           ))}
+          {!!current?.pages.length && (
+            <div className="pb-2 pt-1 text-center">
+              <ReportContent adminKey={adminKey} what="This story" id={player.id} toast={toast} dark />
+            </div>
+          )}
         </div>
       </div>
 
