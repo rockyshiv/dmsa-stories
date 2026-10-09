@@ -6,7 +6,7 @@ import { MAKER, SUPPORT_EMAIL } from "@/lib/story/brand";
 export const metadata: Metadata = {
   title: "Privacy policy | Myithri by Auraclusive",
   description: "How Myithri handles the conversations, recordings and reports it creates.",
-  icons: { icon: "/dmsa-stories/admin-icons/icon-192.png" },
+  icons: { icon: "/admin-icons/icon-192.png" },
 };
 
 const UPDATED = "9 October 2026";

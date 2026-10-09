@@ -4,8 +4,8 @@ import { useSyncExternalStore } from "react";
 import InterviewApp from "@/components/InterviewApp";
 import ConversationApp from "@/components/ConversationApp";
 
-// Player story links: .../dmsa-stories/?c=K7M2QX9P
-// Conversation links (feedback, interviews...): .../dmsa-stories/?u=U1AB2CD3
+// Player story links: https://myithri.auraclusive.com/?c=K7M2QX9P
+// Conversation links (feedback, interviews...): https://myithri.auraclusive.com/?u=U1AB2CD3
 function readLink() {
   const q = new URLSearchParams(window.location.search);
   const u = (q.get("u") || "").trim().toUpperCase();

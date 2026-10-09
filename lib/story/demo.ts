@@ -12,7 +12,7 @@ export const isDemo = (key: string | null | undefined) => key === DEMO_KEY;
 
 const BASE = process.env.NEXT_PUBLIC_BASE_PATH || "";
 const IMG = `${BASE}/demo`;
-const SITE = `https://rockyshiv.github.io${BASE}`;
+const SITE = `https://myithri.auraclusive.com${BASE}`;
 
 /** Said when someone tries to change something in the demo. */
 export const DEMO_NOTE = "This is the demo, so changes aren't saved. Ask Auraclusive to set up Myithri for your organisation.";

@@ -3,7 +3,7 @@
 // the app's own files so it opens without a connection and shows the lists saved on the device,
 // instead of the browser's "no internet" page.
 const CACHE = "myithri-v2";
-const BASE = "/dmsa-stories";
+const BASE = "";
 const SHELL = `${BASE}/admin/`;
 const MAX_FILES = 150;
 

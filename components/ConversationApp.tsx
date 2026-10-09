@@ -25,7 +25,7 @@ import {
 } from "@/components/InterviewApp";
 
 /**
- * A conversation link (.../dmsa-stories/?u=CODE): feedback, a first-round
+ * A conversation link (myithri.auraclusive.com/?u=CODE): feedback, a first-round
  * interview, or anything Shiva set up. The person gives their name, agrees,
  * and talks with Myithri; the summary is written after the call.
  */
