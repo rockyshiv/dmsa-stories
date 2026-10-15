@@ -9,7 +9,7 @@ export const metadata: Metadata = {
   icons: { icon: "/admin-icons/icon-192.png" },
 };
 
-const UPDATED = "9 October 2026";
+const UPDATED = "15 October 2026";
 
 export default function PrivacyPage() {
   return (
@@ -68,6 +68,14 @@ export default function PrivacyPage() {
         content to improve its products, and it may be seen by Google&apos;s reviewers; on a paid plan it is not used that way. You are told this before you agree
         to a conversation. AI can make mistakes, so organisations should check stories before sharing them, and the app has a &quot;Report a problem&quot; button
         on everything the AI writes.
+      </p>
+
+      <h2 id="website-chat">Chatting with Myithri on auraclusive.com</h2>
+      <p>
+        The chat on auraclusive.com is Myithri answering questions about {MAKER}&apos;s services. Your messages are sent to Google&apos;s Gemini AI to
+        write each reply. The conversation stays in your browser for that visit only, and {MAKER} keeps no copy of it, unless you agree to
+        share your name and phone number or email. Then the conversation and your details are emailed to {SUPPORT_EMAIL} so the team can get back
+        to you, and are kept only as long as needed to answer your enquiry. Please don&apos;t share sensitive details in the chat.
       </p>
 
       <h2>Where it is kept</h2>
