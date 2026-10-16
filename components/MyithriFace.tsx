@@ -48,11 +48,32 @@ export default function MyithriFace({
   useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
+    // Wait for the browser's own layout to report the shown size, instead of forcing a layout
+    // here: on a slow phone the first layout of Kannada/Hindi text can take a second.
+    let stop = () => {};
+    let ro: ResizeObserver | null = null;
+    const begin = (shown: number) => {
+      ro?.disconnect();
+      stop = setup(canvas, shown || 160);
+    };
+    if (typeof ResizeObserver === "function") {
+      ro = new ResizeObserver((entries) => begin(entries[0]?.contentRect.width || 0));
+      ro.observe(canvas);
+    } else {
+      begin(canvas.getBoundingClientRect().width);
+    }
+    return () => {
+      ro?.disconnect();
+      stop();
+    };
+  }, []);
+
+  /** Starts drawing on the canvas at the shown width; returns a function that stops it. */
+  function setup(canvas: HTMLCanvasElement, shown: number): () => void {
     const ctx = canvas.getContext("2d");
-    if (!ctx) return;
+    if (!ctx) return () => {};
     const reduceMotion = typeof matchMedia !== "undefined" && matchMedia("(prefers-reduced-motion: reduce)").matches;
     // Draw at the size it is shown (a 64 px avatar needs ~128 canvas pixels, not 480).
-    const shown = canvas.getBoundingClientRect().width || 160;
     const size = Math.max(96, Math.min(MAX_SIZE, Math.round(shown * Math.min(2, window.devicePixelRatio || 1))));
     canvas.width = size;
     canvas.height = size;
@@ -227,7 +248,7 @@ export default function MyithriFace({
       alive = false;
       cancelAnimationFrame(raf);
     };
-  }, []);
+  }
 
   return (
     <div className={`overflow-hidden ${className || ""}`} role="img" aria-label={title}>

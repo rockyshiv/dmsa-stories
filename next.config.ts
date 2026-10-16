@@ -9,6 +9,8 @@ const nextConfig: NextConfig = {
   basePath: BASE_PATH,
   trailingSlash: true,
   images: { unoptimized: true },
+  // SOURCEMAPS=1 npm run build: browser source maps, for profiling slow phones locally (never published).
+  productionBrowserSourceMaps: process.env.SOURCEMAPS === "1",
   env: { NEXT_PUBLIC_BASE_PATH: BASE_PATH },
 };
 
