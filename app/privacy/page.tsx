@@ -9,7 +9,7 @@ export const metadata: Metadata = {
   icons: { icon: "/admin-icons/icon-192.png" },
 };
 
-const UPDATED = "15 October 2026";
+const UPDATED = "16 October 2026";
 
 export default function PrivacyPage() {
   return (
@@ -76,6 +76,11 @@ export default function PrivacyPage() {
         write each reply. The conversation stays in your browser for that visit only, and {MAKER} keeps no copy of it, unless you agree to
         share your name and phone number or email. Then the conversation and your details are emailed to {SUPPORT_EMAIL} so the team can get back
         to you, and are kept only as long as needed to answer your enquiry. Please don&apos;t share sensitive details in the chat.
+      </p>
+      <p id="book-demo">
+        If you book a demo on auraclusive.com, the details you enter (name, organisation, phone number, email if given, a preferred time and any
+        note) are emailed to {SUPPORT_EMAIL} so the team can arrange the call. They are not sent to the AI, and are kept only as long as needed to
+        arrange and follow up on the demo.
       </p>
 
       <h2>Where it is kept</h2>

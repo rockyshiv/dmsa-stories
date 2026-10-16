@@ -21,10 +21,14 @@ import {
   Settings,
   Sparkles,
   Users,
+  Video,
 } from "lucide-react";
 import { storyAdmin, StoryApiError } from "@/lib/story/api";
 import { clearSaved, readSaved, writeSaved } from "@/lib/story/saved";
 import { DEMO_KEY, isDemo } from "@/lib/story/demo";
+
+/** Organisations book a live demo with the Auraclusive team on its website. */
+const DEMO_BOOKING = "https://auraclusive.com/#book-demo";
 import { SUPPORT_EMAIL } from "@/lib/story/brand";
 import DemoTour, { demoTourSeen } from "@/components/DemoTour";
 import { isStuck, missingDetails, stageOf, STATUS_WORDS, ago } from "@/lib/story/players";
@@ -139,7 +143,10 @@ export default function AdminApp() {
   // Remember the key from the link, then drop it from the address bar.
   useEffect(() => {
     const m = window.location.hash.match(/k=([\w-]+)/);
-    if (m) {
+    if (m && isDemo(m[1])) {
+      // the private demo link (#k=demo) opens the demo for this visit only
+      history.replaceState(null, "", window.location.pathname + "#demo");
+    } else if (m) {
       try {
         localStorage.setItem(KEY_STORE, m[1]);
       } catch {
@@ -213,12 +220,13 @@ function Welcome() {
           </button>
         </form>
 
-        <button
-          onClick={() => signIn(DEMO_KEY)}
+        {/* Demos are given live on a video call; the sample-data demo opens only from a private link (#k=demo). */}
+        <a
+          href={DEMO_BOOKING}
           className="mt-4 flex w-full items-center justify-center gap-2 rounded-xl border border-[var(--line)] bg-[var(--surface)] px-4 py-3 font-semibold transition hover:border-[var(--teal)]"
         >
-          <Sparkles className="h-4 w-4 text-[var(--teal)]" /> See a demo with sample data
-        </button>
+          <Video className="h-4 w-4 text-[var(--teal)]" /> Book a free demo
+        </a>
 
         <div className="flex-1" />
         <p className="mt-10 text-center text-sm text-[var(--muted)]">
