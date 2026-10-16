@@ -26,6 +26,7 @@ import { storyAdmin, StoryApiError } from "@/lib/story/api";
 import { clearSaved, readSaved, writeSaved } from "@/lib/story/saved";
 import { DEMO_KEY, isDemo } from "@/lib/story/demo";
 import { SUPPORT_EMAIL } from "@/lib/story/brand";
+import DemoTour, { demoTourSeen } from "@/components/DemoTour";
 import { isStuck, missingDetails, stageOf, STATUS_WORDS, ago } from "@/lib/story/players";
 import { ConversationsView, type BriefView, type Conv } from "@/components/AdminConversations";
 import { HomeView, NewMenu, PageHeader, PeopleView, ReportsView, SettingsView, needsFollowUp } from "@/components/AdminHome";
@@ -272,6 +273,7 @@ function Dashboard({ adminKey }: { adminKey: string }) {
   const [storiesTab, setStoriesTab] = useState<"stories" | "players">("stories");
   const [briefStart, setBriefStart] = useState<{ view?: BriefView; n: number }>({ n: 0 });
   const [peopleFilter, setPeopleFilter] = useState<PeopleFilter | undefined>(undefined);
+  const [touring, setTouring] = useState(false);
   const [section, setSection] = useState<Section>(() => {
     try {
       const raw = localStorage.getItem("dmsaAdminSection") || "";
@@ -362,6 +364,12 @@ function Dashboard({ adminKey }: { adminKey: string }) {
   useEffect(() => {
     load();
   }, [load]);
+
+  // The demo explains itself: a short tour starts the first time it opens on this device.
+  const hasPlayers = !!players;
+  useEffect(() => {
+    if (demo && hasPlayers && !demoTourSeen()) setTouring(true);
+  }, [demo, hasPlayers]);
 
   const showToast = (t: string) => {
     setToast(t);
@@ -464,8 +472,11 @@ function Dashboard({ adminKey }: { adminKey: string }) {
             <div className="flex items-center gap-3 border-b border-[var(--gold)]/40 bg-[var(--gold-soft)] px-4 py-2.5 text-sm lg:px-8">
               <Sparkles className="h-4 w-4 flex-none text-[var(--ink)]" aria-hidden />
               <p className="min-w-0 flex-1">
-                <span className="font-semibold">Demo with sample data.</span> The people and stories here are made up.
+                <span className="font-semibold">Demo</span> with made-up people and stories.
               </p>
+              <button onClick={() => setTouring(true)} className="flex-none rounded-lg border border-[var(--ink)]/20 bg-[var(--surface)] px-3 py-1.5 text-[13px] font-semibold">
+                Tour
+              </button>
               <button onClick={() => signIn(null)} className="flex-none rounded-lg border border-[var(--ink)]/20 bg-[var(--surface)] px-3 py-1.5 text-[13px] font-semibold">
                 Leave demo
               </button>
@@ -651,6 +662,16 @@ function Dashboard({ adminKey }: { adminKey: string }) {
           ))}
         </ul>
       </nav>
+
+      {demo && touring && (
+        <DemoTour
+          go={(s, o) => {
+            setReading(null);
+            go(s, o);
+          }}
+          onClose={() => setTouring(false)}
+        />
+      )}
 
       {reading && <StoryReader adminKey={adminKey} player={reading} onClose={() => setReading(null)} toast={showToast} />}
 

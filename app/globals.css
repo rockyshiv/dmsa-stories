@@ -99,3 +99,9 @@ html, body { background: #081733; color: #fff; font-family: var(--font-sans); }
 }
 .myithri-breathe { animation: myithri-breathe 8s ease-in-out infinite; transform: scale(1.03); }
 @media (prefers-reduced-motion: reduce) { .myithri-breathe { animation: none; } }
+
+/* Demo tour (DemoTour.tsx): the part Myithri is talking about gets a teal outline. */
+[data-tour] { scroll-margin-top: 16px; }
+[data-tour-on] { outline: 3px solid #1ba5a5; outline-offset: 6px; border-radius: 18px; animation: tour-ring 1.4s ease-out 2; }
+@keyframes tour-ring { 0% { box-shadow: 0 0 0 0 rgba(27,165,165,0.45); } 100% { box-shadow: 0 0 0 14px rgba(27,165,165,0); } }
+@media (prefers-reduced-motion: reduce) { [data-tour-on] { animation: none; } }

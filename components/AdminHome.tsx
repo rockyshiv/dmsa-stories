@@ -300,7 +300,7 @@ export function HomeView({
 
       <GettingStarted adminKey={adminKey} convs={convs} people={people} orgInfo={orgInfo} go={go} />
 
-      <div className="mt-6 grid grid-cols-2 gap-3 lg:grid-cols-4">
+      <div data-tour="stats" className="mt-6 grid grid-cols-2 gap-3 lg:grid-cols-4">
         {[
           { n: heard, l: "People heard", go: () => go("people") },
           { n: Math.round(minutes / 6) / 10, l: "Hours of conversation", go: () => go("people") },
@@ -314,7 +314,7 @@ export function HomeView({
         ))}
       </div>
 
-      <section className="mt-8">
+      <section data-tour="needs" className="mt-8">
         <h2 className="font-heading text-lg font-bold">Needs you</h2>
         {todo.length ? (
           <ul className={`${card} mt-3 divide-y divide-[var(--line)] overflow-hidden`}>
