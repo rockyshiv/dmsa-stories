@@ -206,7 +206,7 @@ export function ImpactCard({
           )}
           {!working && (
             <label className="mt-3 flex items-center gap-2 text-sm text-[var(--muted)]">
-              <input type="checkbox" checked={names} onChange={(e) => setNames(e.target.checked)} className="h-4 w-4 accent-[var(--teal)]" />
+              <input type="checkbox" checked={names} onChange={(e) => setNames(e.target.checked)} className="h-6 w-6 flex-none accent-[var(--teal)]" />
               {conv ? "Show people's names" : "Show players' names and photos"}{report && names !== report.names ? " (tap Update to apply)" : ""}
             </label>
           )}

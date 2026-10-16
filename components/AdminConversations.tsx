@@ -235,11 +235,11 @@ function ConvList({
         </button>
       )}
       {list && list.length > 0 && (
-        <ul className="mt-6 grid gap-3 sm:grid-cols-2">
+        <ul className="mt-6 grid grid-cols-1 gap-3 sm:grid-cols-2">
           {list.map((c) => {
             const Icon = TYPE_ICON[c.type] || MessagesSquare;
             return (
-              <li key={c.id}>
+              <li key={c.id} className="min-w-0">
                 <button
                   onClick={() => onOpen(c)}
                   className="flex h-full w-full flex-col rounded-2xl border border-[var(--line)] bg-[var(--surface)] p-4 text-left transition hover:border-[var(--teal)]"
@@ -488,11 +488,11 @@ function Builder({ adminKey, existing, onBack, onSaved }: { adminKey: string; ex
                   </select>
                 </label>
                 <label className="flex items-center gap-3 self-end rounded-lg border border-[var(--line)] px-3 py-3 text-[15px]">
-                  <input type="checkbox" className="h-5 w-5 accent-[var(--teal)]" checked={!!f.askPhone} onChange={(e) => set("askPhone", e.target.checked)} />
+                  <input type="checkbox" className="h-6 w-6 accent-[var(--teal)]" checked={!!f.askPhone} onChange={(e) => set("askPhone", e.target.checked)} />
                   Phone number required
                 </label>
                 <label className="flex items-start gap-3 rounded-lg border border-[var(--line)] px-3 py-3 text-[15px] sm:col-span-2">
-                  <input type="checkbox" className="mt-0.5 h-5 w-5 flex-none accent-[var(--teal)]" checked={!!f.media} onChange={(e) => set("media", e.target.checked)} />
+                  <input type="checkbox" className="mt-0.5 h-6 w-6 flex-none accent-[var(--teal)]" checked={!!f.media} onChange={(e) => set("media", e.target.checked)} />
                   <span>
                     <span className="block">People can add photos and a video</span>
                     <span className="block text-xs text-[var(--muted)]">After talking, each person may share up to 5 photos and 1 short video. It is optional for them, and you see them on their page.</span>
@@ -715,7 +715,7 @@ function ConvDetail({
           <section className="rounded-2xl border border-[var(--line)] bg-[var(--surface)] p-4">
             <div className="flex items-center justify-between">
               <h2 className="font-heading text-[15px] font-bold">Questions</h2>
-              <button onClick={() => onEdit(c)} className="flex items-center gap-1.5 text-sm font-semibold text-[var(--teal)]">
+              <button onClick={() => onEdit(c)} className="-my-2 flex items-center gap-1.5 py-2 text-sm font-semibold text-[var(--teal)]">
                 <Pencil className="h-4 w-4" /> Edit
               </button>
             </div>
@@ -735,7 +735,7 @@ function ConvDetail({
                 <b>Assessed on:</b> {c.cfg.criteria.join(", ")}
               </p>
             )}
-            <button onClick={() => setStatus(false, true)} className="mt-4 text-sm text-[var(--muted)] underline-offset-4 hover:underline">
+            <button onClick={() => setStatus(false, true)} className="mt-2 py-2 text-sm text-[var(--muted)] underline-offset-4 hover:underline">
               Archive this brief
             </button>
           </section>
@@ -759,7 +759,7 @@ function ShareCard({ conv, toast, onToggle }: { conv: Conv; toast: (t: string) =
         <p className="text-[13px] font-semibold">Link to share</p>
         <label className="flex cursor-pointer items-center gap-2 text-sm">
           <span className={open ? "font-semibold text-[var(--teal)]" : "text-[var(--muted)]"}>{open ? "Open" : "Closed"}</span>
-          <input type="checkbox" className="h-5 w-5 accent-[var(--teal)]" checked={open} onChange={onToggle} aria-label="Link open" />
+          <input type="checkbox" className="h-6 w-6 accent-[var(--teal)]" checked={open} onChange={onToggle} aria-label="Link open" />
         </label>
       </div>
       <p className="mt-1 truncate font-mono text-xs text-[var(--muted)]">{conv.link}</p>

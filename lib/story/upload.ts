@@ -3,7 +3,7 @@
  * backend. Bytes go straight from the phone to Drive; if the browser blocks
  * that, chunks are relayed through the backend instead.
  */
-import { storyApi } from "./api";
+import { storyApi, storyLog } from "./api";
 
 const QUANTUM = 256 * 1024; // Drive requires non-final chunks in multiples of this
 const CHUNK = 32 * QUANTUM; // 8 MB
@@ -221,6 +221,7 @@ export async function uploadFile(
       break;
     }
   }
-  storyApi("uploadDone", { code, kind: opts.kind, fileId: result?.id }).catch(() => {});
+  // The server also notices finished uploads on its own (hourly rescue), so a failure here is logged, not fatal.
+  storyApi("uploadDone", { code, kind: opts.kind, fileId: result?.id }).catch((e) => storyLog(code, `${opts.kind} uploadDone failed after retries: ${String((e as Error)?.message || e).slice(0, 120)}`));
   return result;
 }

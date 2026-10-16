@@ -1,5 +1,6 @@
 import type { Metadata, Viewport } from "next";
 import AdminApp from "@/components/AdminApp";
+import { SafeAdminPage } from "@/components/SafePage";
 
 // The organisation's private dashboard. Installable as an app ("Add to Home screen").
 export const metadata: Metadata = {
@@ -14,5 +15,9 @@ export const metadata: Metadata = {
 export const viewport: Viewport = { themeColor: "#0B1F44" };
 
 export default function AdminPage() {
-  return <AdminApp />;
+  return (
+    <SafeAdminPage>
+      <AdminApp />
+    </SafeAdminPage>
+  );
 }

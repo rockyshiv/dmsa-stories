@@ -90,3 +90,12 @@
 }
 
 html, body { background: #081733; color: #fff; font-family: var(--font-sans); }
+
+/* Myithri's breathing sway (MyithriFace): done by the browser's compositor, so it costs a cheap phone almost nothing. */
+@keyframes myithri-breathe {
+  0% { transform: translateY(0.5px) rotate(-0.35deg) scale(1.027); }
+  50% { transform: translateY(-0.5px) rotate(0.35deg) scale(1.033); }
+  100% { transform: translateY(0.5px) rotate(-0.35deg) scale(1.027); }
+}
+.myithri-breathe { animation: myithri-breathe 8s ease-in-out infinite; transform: scale(1.03); }
+@media (prefers-reduced-motion: reduce) { .myithri-breathe { animation: none; } }

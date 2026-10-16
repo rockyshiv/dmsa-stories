@@ -439,7 +439,7 @@ export class Interview {
     this.cb.onPortrait();
     const blob = await new Promise<Blob | null>((r) => c.toBlob(r, "image/jpeg", 0.92));
     if (!blob) return false;
-    uploadFile(this.code, blob, { kind: "portrait", name: "portrait.jpg" }).catch(() => {});
+    uploadFile(this.code, blob, { kind: "portrait", name: "portrait.jpg" }).catch((e) => storyLog(this.code, "portrait upload failed after retries: " + String((e as Error)?.message || e).slice(0, 120)));
     return true;
   }
 
@@ -560,7 +560,7 @@ export class Interview {
       );
       this.cleanup();
       await this.saveTranscript();
-      storyApi("finish", { code: this.code, completed: this.completed, minutes: this.elapsed / 60, sessionId: this.sessionId }).catch(() => {});
+      storyApi("finish", { code: this.code, completed: this.completed, minutes: this.elapsed / 60, sessionId: this.sessionId }).catch((e) => storyLog(this.code, "finish failed after retries: " + String((e as Error)?.message || e).slice(0, 120)));
       await this.sendAudio();
       return this.sendVideo(false);
     })();
@@ -573,7 +573,7 @@ export class Interview {
     try {
       const file = await this.audioUploader.finish();
       this.log(`audio saved ${Math.round(this.audioUploader.uploaded / 1e5) / 10} MB`);
-      storyApi("uploadDone", { code: this.code, kind: "audio", fileId: file?.id }).catch(() => {});
+      storyApi("uploadDone", { code: this.code, kind: "audio", fileId: file?.id }).catch((e) => storyLog(this.code, "audio uploadDone failed after retries: " + String((e as Error)?.message || e).slice(0, 120)));
     } catch (e) {
       this.log(`audio save failed: ${String((e as Error)?.message || e)}`);
     }
@@ -591,7 +591,7 @@ export class Interview {
       const file = retry ? await up.retry() : await up.finish();
       this.log(`video saved ${Math.round(up.uploaded / 1e6)} MB`);
       flushStoryLog();
-      storyApi("uploadDone", { code: this.code, kind: "interview", fileId: file?.id }).catch(() => {});
+      storyApi("uploadDone", { code: this.code, kind: "interview", fileId: file?.id }).catch((e) => storyLog(this.code, "video uploadDone failed after retries: " + String((e as Error)?.message || e).slice(0, 120)));
       return true;
     } catch (e) {
       this.log(`video save failed: ${String((e as Error)?.message || e)}`);

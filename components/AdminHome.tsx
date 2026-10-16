@@ -341,7 +341,7 @@ export function HomeView({
         <section>
           <div className="flex items-baseline justify-between">
             <h2 className="font-heading text-lg font-bold">Open briefs</h2>
-            <button onClick={() => go("briefs")} className="text-sm font-semibold text-[var(--teal)]">
+            <button onClick={() => go("briefs")} className="-my-2 py-2 text-sm font-semibold text-[var(--teal)]">
               See all
             </button>
           </div>
@@ -374,7 +374,7 @@ export function HomeView({
         <section>
           <div className="flex items-baseline justify-between">
             <h2 className="font-heading text-lg font-bold">Latest stories</h2>
-            <button onClick={() => go("stories", { storiesTab: "stories" })} className="text-sm font-semibold text-[var(--teal)]">
+            <button onClick={() => go("stories", { storiesTab: "stories" })} className="-my-2 py-2 text-sm font-semibold text-[var(--teal)]">
               See all
             </button>
           </div>

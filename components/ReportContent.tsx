@@ -58,7 +58,7 @@ export function ReportContent({
     <>
       <button
         onClick={() => setOpen(true)}
-        className={`inline-flex items-center gap-1.5 text-[13px] font-semibold underline-offset-4 hover:underline ${dark ? "text-white/80" : "text-[var(--muted)]"} ${className}`}
+        className={`inline-flex items-center gap-1.5 py-2 text-[13px] font-semibold underline-offset-4 hover:underline ${dark ? "text-white/80" : "text-[var(--muted)]"} ${className}`}
       >
         <Flag className="h-3.5 w-3.5" aria-hidden /> Report a problem
       </button>

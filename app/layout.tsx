@@ -11,6 +11,7 @@ export const metadata: Metadata = {
   title: "Share your story | Divyaang Myithri Sports Academy",
   description: "A private interview link for DMSA players.",
   robots: { index: false, follow: false },
+  icons: { icon: "/admin-icons/icon-192.png", apple: "/admin-icons/icon-192.png" },
 };
 
 export const viewport: Viewport = { themeColor: "#081733" };

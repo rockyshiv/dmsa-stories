@@ -227,7 +227,7 @@ function Welcome() {
           </a>
         </p>
         <p className="mt-2 text-center text-xs">
-          <a href={`${BASE}/privacy/`} className="text-[var(--muted)] underline underline-offset-4">
+          <a href={`${BASE}/privacy/`} className="inline-block py-2 text-[var(--muted)] underline underline-offset-4">
             Privacy policy
           </a>
         </p>
@@ -1029,7 +1029,7 @@ function PlayerPage({
               </div>
             </div>
             <label className="flex items-center gap-3 border-t border-[var(--line)] px-4 py-3 text-sm">
-              <input type="checkbox" className="h-5 w-5 accent-[var(--teal)]" checked={!!player.approved} onChange={(e) => approve(e.target.checked)} />
+              <input type="checkbox" className="h-6 w-6 accent-[var(--teal)]" checked={!!player.approved} onChange={(e) => approve(e.target.checked)} />
               {player.greet} has read and approved the story
             </label>
             {media?.needsCheck && media.needsCheck.length > 0 && (
